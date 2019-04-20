@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}'):
+def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}', figsize=None):
     '''Creates a heatmap plot of the given matrix.
 
     Args
@@ -11,12 +11,17 @@ def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}'):
     - ylabels: list of str, length m
     - title: str, optional
     - format_spec: str, format specification
+    - figsize: list of float, [width, height] in inches
+        - if None, defaults to [n*0.7 + 0.5, n*0.7]
     '''
     m, n = mat.shape
     assert len(xlabels) == n
     assert len(ylabels) == m
 
-    fig, ax = plt.subplots(1, 1, figsize=[n*0.7 + 0.5, m*0.7])
+    if figsize is None:
+        figsize = [n*0.7 + 0.5, m*0.7]
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
     im = ax.imshow(mat, cmap='viridis')
     fig.colorbar(im, ax=ax)
 
@@ -53,7 +58,7 @@ def symmetric_heatmap(mat, labels, title=None, format_spec='{:.1f}',
     - labels: list of str, length n
     - title: str, optional
     - format_spec: str, format specification
-    - figsize: list [width, height]
+    - figsize: list of float, [width, height] in inches
         - if None, defaults to [n*0.7 + 0.5, n*0.7]
     '''
     heatmap(
@@ -72,14 +77,14 @@ def boxplot_df(df, y, by, figsize, ylabel, title, colors):
     - df: pd.DataFrame, contains columns from `y` and `by`
     - y: str, name of a column in `df` for the y-axis
     - by: str or list of str, names of columns in `df` to group by
-    - figsize: list [width, height], in inches
+    - figsize: list of float, [width, height], in inches
     - ylabel: str
     - title: str
     - colors: list of matplotlib colors, one per group after grouping by `by`
     '''
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     bplot = df.boxplot(y, by=by, ax=ax, grid=False, patch_artist=True,
-                            return_type='dict', widths=0.8)
+                       return_type='dict', widths=0.8)
     for i, patch in enumerate(bplot[y]['boxes']):
         patch.set_facecolor(colors[i])
     ax.grid(True, axis='y')
