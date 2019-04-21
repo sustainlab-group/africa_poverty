@@ -1,5 +1,5 @@
 from models.base_model import BaseModel
-from models.init_from_pretrained_utils import init_resnet_v2_from_numpy
+from models.init_from_pretrained import init_resnet_v2_from_numpy
 from models import hyperspectral_resnet
 
 import tensorflow as tf

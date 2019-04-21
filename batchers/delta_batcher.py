@@ -33,7 +33,7 @@ def get_lsms_tfrecord_pairs(indices_dict):
     else:
         paths_dict = defaultdict(list)
         for i1, i2 in zip(delta_pairs_df['index1'], delta_pairs_df['index2']):
-            for k, indices in indices_dict:
+            for k, indices in indices_dict.items():
                 isin = np.isin([i1, i2], indices)
                 assert isin[0] == isin[1]
                 if isin[0]:

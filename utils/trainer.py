@@ -17,7 +17,7 @@ class Trainer(object):
                  train_preds, train_eval_preds, val_preds,
                  sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
                  log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
-                 hs_weight_init, exclude_final_layer):
+                 hs_weight_init, exclude_final_layer, image_summaries=True):
         '''Initialize a trainer.
 
         Args
@@ -39,6 +39,7 @@ class Trainer(object):
         - imagenet_weights_path: str
         - hs_weight_init: str
         - exclude_final_layer: bool or None
+        - image_summaries: bool, whether to add image summaries
         '''
         self.sess = sess
         self.steps_per_epoch = steps_per_epoch
@@ -77,20 +78,21 @@ class Trainer(object):
         # ====================
         # gather the summaries to run after every step
         step_summaries = [train_loss_summaries]
-        if ls_bands in ['rgb', 'ms']:
-            train_rgb_imgs = tf.reverse(self.train_images[:, :, :, 0:3], axis=[3])
-            img_sums = add_image_summaries(
-                images=train_rgb_imgs, labels=self.train_labels,
-                preds=self.train_preds, locs=self.train_locs, k=1)
-            step_summaries.append(img_sums)
-        elif nl_band is not None:
-            # add the DMSP and VIIRS bands together (one of them is all-0 anyways)
-            # to create a greyscale image
-            train_nl_imgs = tf.reduce_sum(self.train_images, axis=3, keepdims=True)
-            img_sums = add_image_summaries(
-                images=train_nl_imgs, labels=self.train_labels,
-                preds=self.train_preds, locs=self.train_locs, k=1)
-            step_summaries.append(img_sums)
+        if image_summaries:
+            if ls_bands in ['rgb', 'ms']:
+                train_rgb_imgs = tf.reverse(self.train_images[:, :, :, 0:3], axis=[3])
+                img_sums = add_image_summaries(
+                    images=train_rgb_imgs, labels=self.train_labels,
+                    preds=self.train_preds, locs=self.train_locs, k=1)
+                step_summaries.append(img_sums)
+            elif nl_band is not None:
+                # add the DMSP and VIIRS bands together (one of them is all-0 anyways)
+                # to create a greyscale image
+                train_nl_imgs = tf.reduce_sum(self.train_images, axis=3, keepdims=True)
+                img_sums = add_image_summaries(
+                    images=train_nl_imgs, labels=self.train_labels,
+                    preds=self.train_preds, locs=self.train_locs, k=1)
+                step_summaries.append(img_sums)
 
         # gather the summaries to run after every epoch
         first_layer_sums = train_model.get_first_layer_summaries(ls_bands, nl_band)
