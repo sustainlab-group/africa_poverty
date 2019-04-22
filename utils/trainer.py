@@ -8,18 +8,19 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import PIL.ImageDraw
+import sklearn.metrics
 import tensorflow as tf
 
 
-class Trainer(object):
+class BaseTrainer(object):
     def __init__(self, train_batch, train_eval_batch, val_batch,
                  train_model, train_eval_model, val_model,
                  train_preds, train_eval_preds, val_preds,
                  sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
                  log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
-                 hs_weight_init, exclude_final_layer, image_summaries=True):
-        '''Initialize a trainer.
-
+                 hs_weight_init, exclude_final_layer, image_summaries,
+                 loss_fn, loss_type, results_cols):
+        '''
         Args
         - train_batch / train_eval_batch / val_batch: dict of tf.Tensor
             images: tf.Tensor, shape [N, H, W, C]
@@ -40,6 +41,9 @@ class Trainer(object):
         - hs_weight_init: str
         - exclude_final_layer: bool or None
         - image_summaries: bool, whether to add image summaries
+        - loss_fn: function
+        - loss_type: str, one of ['loss_mse', 'loss_xent']
+        - results_cols: list of str, columns matching the return values of self.evaluate_preds()
         '''
         self.sess = sess
         self.steps_per_epoch = steps_per_epoch
@@ -61,9 +65,10 @@ class Trainer(object):
         # ====================
         #      OPTIMIZER
         # ====================
+        self.loss_type = loss_type
         with tf.variable_scope('train'):  # use 'train' scope to distinguish from 'val' losses
-            self.train_loss_total, self.train_loss_mse, _, train_loss_summaries = \
-                loss_utils.loss_mse(self.train_preds, self.train_labels)
+            self.train_loss_total, self.train_loss_nonreg, _, train_loss_summaries = \
+                loss_fn(self.train_labels, self.train_preds)
 
         self.lr_ph = tf.placeholder(dtype=tf.float32, shape=[], name='lr_placeholder')
         optimizer = tf.train.AdamOptimizer(self.lr_ph)
@@ -107,8 +112,8 @@ class Trainer(object):
         # ====================
         #  EVALUATION METRICS
         # ====================
-        self.train_eval_summaries = create_eval_summaries('train')
-        self.val_eval_summaries = create_eval_summaries('val')
+        self.train_eval_summaries = self.create_eval_summaries('train')
+        self.val_eval_summaries = self.create_eval_summaries('val')
 
         # ====================
         #   INITIALIZE VARS
@@ -129,10 +134,10 @@ class Trainer(object):
         self.saver = tf.train.Saver(var_list=None, max_to_keep=MAX_MODELS_TO_KEEP)
 
         # variables to update during training
-        self.results = pd.DataFrame(columns=['epoch', 'split', 'r2', 'R2', 'mse', 'rank'])
-        self.results.set_index(['epoch', 'split'], inplace=True)
         self.step = 0
         self.epoch = 0
+        self.results = pd.DataFrame(columns=['epoch', 'split'] + results_cols)
+        self.results.set_index(['epoch', 'split'], inplace=True)
 
     def train_epoch(self, print_every=1):
         '''Run 1 epoch of training.
@@ -146,7 +151,7 @@ class Trainer(object):
         preds_all = []
         labels_all = []
         feed_dict = {self.lr_ph: self.learning_rate * (self.lr_decay ** self.epoch)}
-        step_str = 'Step {:05d}. Epoch {:02d}. loss_mse: {:0.4f}, loss_tot: {:0.4f}, time: {:0.3f}s'
+        step_str = 'Step {:05d}. Epoch {:02d}. {}: {:0.4f}, loss_tot: {:0.4f}, time: {:0.3f}s'
 
         try:
             while True:
@@ -157,12 +162,12 @@ class Trainer(object):
 
                 if self.step % print_every == 0:
                     start_time = time.time()
-                    loss_total, loss_mse, preds, labels, summary, _ = self.sess.run([
-                        self.train_loss_total, self.train_loss_mse,
+                    loss_total, loss_nonreg, preds, labels, summary, _ = self.sess.run([
+                        self.train_loss_total, self.train_loss_nonreg,
                         self.train_preds, self.train_labels,
                         self.step_summaries_op, self.train_op], feed_dict=feed_dict)
                     duration = time.time() - start_time
-                    print(step_str.format(self.step, self.epoch, loss_mse, loss_total, duration))
+                    print(step_str.format(self.step, self.epoch, self.loss_type, loss_nonreg, loss_total, duration))
                     self.summary_writer.add_summary(summary, self.step)
                 else:
                     preds, labels, _ = self.sess.run([
@@ -185,122 +190,54 @@ class Trainer(object):
         self.summary_writer.add_summary(summary, self.epoch)
         self.summary_writer.flush()
 
-    def eval_train(self, init_iter=None, feed_dict=None, max_nbatches=None):
-        '''Run trained model on training dataset.
-
+    def _eval_split(self, labels, preds, split, eval_summaries,
+                    init_iter=None, feed_dict=None, max_nbatches=None):
+        '''
         Args
-        - init_iter: tf.Operation, train_eval dataset iterator initializer
+        - labels: tf.Tensor, shape [batch_size] or [batch_size, label_dim]
+        - preds: tf.Tensor, shape [batch_size] or [batch_size, num_classes]
+        - split: str
+        - eval_summaries: dict, keys are str
+            - other str => tf.placeholder for summaries
+            - 'summary_op' => tf.Summary, merge of evaluation summaries
+        - init_iter: tf.Operation, dataset iterator initializer
             set to None if no iterator initialization is necessary
         - feed_dict: dict, used for populating placeholders needed
             to initialize the dataset iterator
         - max_nbatches: int, maximum number of batches of the training dataset to run
             set to None to run until reaching a tf.errors.OutOfRangeError
         '''
-        print('Evaluating model on training set...')
+        print(f'Evaluating model on {split} set...')
         if init_iter is not None:
             self.sess.run(init_iter, feed_dict=feed_dict)
         start_time = time.time()
-        tensors_dict_ops = {
-            'preds': self.train_eval_preds,
-            'labels': self.train_eval_labels,
-        }
+        tensors_dict_ops = {'preds': preds, 'labels': labels}
         all_tensors = run_batches(
             sess=self.sess,
             tensors_dict_ops=tensors_dict_ops,
             max_nbatches=max_nbatches,
             verbose=True)
         speed = len(all_tensors['preds']) / (time.time() - start_time)
-        print(f'... Finished training set. Completed at {speed:.3f} images / s')
-        self.results.loc[(self.epoch, 'train'), :] = self.evaluate_preds(
+        print(f'... Finished {split} set. Completed at {speed:.3f} images / s')
+        self.results.loc[(self.epoch, split), :] = self.evaluate_preds(
             labels=all_tensors['labels'],
             preds=all_tensors['preds'],
+            split=split,
+            eval_summaries=eval_summaries)
+
+    def eval_train(self, init_iter=None, feed_dict=None, max_nbatches=None):
+        '''Run trained model on training dataset.
+
+        Args: see self._eval_split()
+        '''
+        self._eval_split(
+            labels=self.train_eval_labels,
+            preds=self.train_eval_preds,
             split='train_eval',
-            eval_summaries=self.train_eval_summaries)
-
-    def eval_val(self, init_iter=None, feed_dict=None, max_nbatches=None):
-        '''Run trained model on validation dataset. Saves model checkpoint if
-        validation mse is lower than the best seen so far.
-
-        Args
-        - init_iter: tf.Operation, validation dataset iterator initializer
-            set to None if no iterator initialization is necessary
-        - feed_dict: dict, used for populating placeholders needed
-            to initialize the dataset iterator
-        - max_nbatches: int, maximum number of batches of the validation dataset to run
-            set to None to run until reaching a tf.errors.OutOfRangeError
-        '''
-        print('Evaluating model on validation set...')
-        if init_iter is not None:
-            self.sess.run(init_iter, feed_dict=feed_dict)
-        start_time = time.time()
-        tensors_dict_ops = {
-            'preds': self.val_preds,
-            'labels': self.val_labels,
-        }
-        all_tensors = run_batches(
-            sess=self.sess,
-            tensors_dict_ops=tensors_dict_ops,
-            max_nbatches=max_nbatches,
-            verbose=True)
-        speed = len(all_tensors['preds']) / (time.time() - start_time)
-        print(f'... Finished validation. Completed at {speed:.3f} images / s')
-        self.results.loc[(self.epoch, 'val'), :] = self.evaluate_preds(
-            labels=all_tensors['labels'],
-            preds=all_tensors['preds'],
-            split='val',
-            eval_summaries=self.val_eval_summaries)
-
-        # if first run or new best val mse
-        val_mse = self.results.loc[(self.epoch, 'val'), 'mse']
-        val_mses = self.results.loc[(slice(None), 'val'), 'mse']
-        if (len(val_mses) == 1) or (val_mse == val_mses.min()):
-            saved_ckpt_path = self.save_ckpt()
-            print('New best MSE on val! Saved checkpoint to', saved_ckpt_path)
-
-    def save_ckpt(self):
-        '''Saves the current model to a checkpoint, and returns the checkpoint path'''
-        return self.saver.save(
-            sess=self.sess,
-            save_path=self.save_ckpt_prefix,
-            global_step=self.epoch)
-
-    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
-        '''Helper method to calculate r^2, R^2, mse, and rank.
-
-        Args
-        - labels: np.array, shape [N] or [N, label_dim]
-            - if shape [N, label_dim], only the 0-th column is used
-        - preds: np.array, same shape as labels
-        - split: str
-        - eval_summaries: dict, keys are str
-            'r2_placeholder' => tf.placeholder
-            'R2_placeholder' => tf.placeholder
-            'mse_placeholder' => tf.placeholder
-            'summary_op' => tf.Summary, merge of r2, R2, and mse summaries
-
-        Returns: r2, R2, mse, rank
-        '''
-        assert labels.shape == preds.shape
-        labels_eval = labels
-        preds_eval = preds
-        if len(labels.shape) > 1:
-            labels_eval = labels[:, 0]
-            preds_eval = preds[:, 0]
-
-        r2, R2, mse, rank = evaluate(labels_eval, preds_eval, do_print=False)
-
-        num_examples = len(labels_eval)
-        s = 'Epoch {:02d}, {} ({} examples) r^2: {:0.3f}, R^2: {:0.3f}, mse: {:0.3f}, rank: {:0.3f}'
-        print(s.format(self.epoch, split, num_examples, r2, R2, mse, rank))
-
-        if eval_summaries is not None:
-            summary_str = self.sess.run(eval_summaries['summary_op'], feed_dict={
-                eval_summaries['r2_placeholder']: r2,
-                eval_summaries['R2_placeholder']: R2,
-                eval_summaries['mse_placeholder']: mse
-            })
-            self.summary_writer.add_summary(summary_str, self.epoch)
-        return r2, R2, mse, rank
+            eval_summaries=self.train_eval_summaries,
+            init_iter=init_iter,
+            feed_dict=feed_dict,
+            max_nbatches=max_nbatches)
 
     def _init_vars(self, model, ckpt_dir, imagenet_weights_path=None, hs_weight_init=None,
                    exclude_final_layer=None):
@@ -343,6 +280,13 @@ class Trainer(object):
         # raise Exception('Did not find checkpoint nor pre-trained ImageNet weights.')
         print('No pre-trained weights given. Using default variable initialization.')
 
+    def save_ckpt(self):
+        '''Saves the current model to a checkpoint, and returns the checkpoint path'''
+        return self.saver.save(
+            sess=self.sess,
+            save_path=self.save_ckpt_prefix,
+            global_step=self.epoch)
+
     def log_results(self, csv_path):
         '''
         Args
@@ -351,30 +295,229 @@ class Trainer(object):
         print('saving csv log to:', csv_path)
         self.results.to_csv(csv_path)
 
+    def create_eval_summaries(self, scope):
+        raise NotImplementedError
 
-def create_eval_summaries(scope):
-    '''
-    Args
-    - scope: str
+    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+        raise NotImplementedError
 
-    Returns metrics: dict, keys are str
-        'r2_placeholder' => tf.placeholder
-        'R2_placeholder' => tf.placeholder
-        'mse_placeholder' => tf.placeholder
-        'summary_op' => tf.Summary, merge of r2, R2, and mse summaries
-    '''
-    metrics = {}
-    # not sure why, but we need the '/' in order to reuse the same 'train/' name for the scope
-    with tf.name_scope(scope + '/'):
-        metrics['r2_placeholder'] = tf.placeholder(tf.float32, shape=[], name='r2_placeholder')
-        metrics['R2_placeholder'] = tf.placeholder(tf.float32, shape=[], name='R2_placeholder')
-        metrics['mse_placeholder'] = tf.placeholder(tf.float32, shape=[], name='mse_placeholder')
-        metrics['summary_op'] = tf.summary.merge([
-            tf.summary.scalar('r2', metrics['r2_placeholder']),
-            tf.summary.scalar('R2', metrics['R2_placeholder']),
-            tf.summary.scalar('mse', metrics['mse_placeholder'])
-        ])
-    return metrics
+    def eval_val(self, init_iter=None, feed_dict=None, max_nbatches=None):
+        raise NotImplementedError
+
+
+class RegressionTrainer(BaseTrainer):
+    def __init__(self, train_batch, train_eval_batch, val_batch,
+                 train_model, train_eval_model, val_model,
+                 train_preds, train_eval_preds, val_preds,
+                 sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
+                 log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
+                 hs_weight_init, exclude_final_layer, image_summaries=True):
+        '''
+        See BaseTrainer for args descriptions
+        '''
+        super(RegressionTrainer, self).__init__(
+            train_batch, train_eval_batch, val_batch,
+            train_model, train_eval_model, val_model,
+            train_preds, train_eval_preds, val_preds,
+            sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
+            log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
+            hs_weight_init, exclude_final_layer, image_summaries,
+            loss_fn=loss_utils.loss_mse,
+            loss_type='loss_mse',
+            results_cols=['r2', 'R2', 'mse', 'rank'])
+
+    def eval_val(self, init_iter=None, feed_dict=None, max_nbatches=None):
+        '''Run trained model on validation dataset. Saves model checkpoint if
+        validation mse is lower than the best seen so far.
+
+        Args
+        - init_iter: tf.Operation, validation dataset iterator initializer
+            set to None if no iterator initialization is necessary
+        - feed_dict: dict, used for populating placeholders needed
+            to initialize the dataset iterator
+        - max_nbatches: int, maximum number of batches of the validation dataset to run
+            set to None to run until reaching a tf.errors.OutOfRangeError
+        '''
+        self._eval_split(
+            labels=self.val_labels,
+            preds=self.val_preds,
+            split='val',
+            eval_summaries=self.val_eval_summaries,
+            init_iter=init_iter,
+            feed_dict=feed_dict,
+            max_nbatches=max_nbatches)
+
+        # if first run or new best val mse
+        val_mse = self.results.loc[(self.epoch, 'val'), 'mse']
+        val_mses = self.results.loc[(slice(None), 'val'), 'mse']
+        if (len(val_mses) == 1) or (val_mse == val_mses.min()):
+            saved_ckpt_path = self.save_ckpt()
+            print('New best MSE on val! Saved checkpoint to', saved_ckpt_path)
+
+    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+        '''Helper method to calculate r^2, R^2, mse, and rank.
+
+        Args
+        - labels: np.array, shape [N] or [N, label_dim]
+            - if shape [N, label_dim], only the 0-th column is used
+        - preds: np.array, same shape as labels
+        - split: str
+        - eval_summaries: dict, keys are str
+            'r2_placeholder' => tf.placeholder
+            'R2_placeholder' => tf.placeholder
+            'mse_placeholder' => tf.placeholder
+            'summary_op' => tf.Summary, merge of r2, R2, and mse summaries
+
+        Returns: r2, R2, mse, rank
+        '''
+        assert labels.shape == preds.shape
+        labels_eval = labels
+        preds_eval = preds
+        if len(labels.shape) > 1:
+            labels_eval = labels[:, 0]
+            preds_eval = preds[:, 0]
+
+        r2, R2, mse, rank = evaluate(labels_eval, preds_eval, do_print=False)
+
+        num_examples = len(labels_eval)
+        s = 'Epoch {:02d}, {} ({} examples) r^2: {:0.3f}, R^2: {:0.3f}, mse: {:0.3f}, rank: {:0.3f}'
+        print(s.format(self.epoch, split, num_examples, r2, R2, mse, rank))
+
+        if eval_summaries is not None:
+            summary_str = self.sess.run(eval_summaries['summary_op'], feed_dict={
+                eval_summaries['r2_placeholder']: r2,
+                eval_summaries['R2_placeholder']: R2,
+                eval_summaries['mse_placeholder']: mse
+            })
+            self.summary_writer.add_summary(summary_str, self.epoch)
+        return r2, R2, mse, rank
+
+    def create_eval_summaries(self, scope):
+        '''
+        Args
+        - scope: str
+
+        Returns metrics: dict, keys are str
+            'r2_placeholder' => tf.placeholder
+            'R2_placeholder' => tf.placeholder
+            'mse_placeholder' => tf.placeholder
+            'summary_op' => tf.Summary, merge of r2, R2, and mse summaries
+        '''
+        metrics = {}
+        # not sure why, but we need the '/' in order to reuse the same 'train/' name for the scope
+        with tf.name_scope(scope + '/'):
+            metrics['r2_placeholder'] = tf.placeholder(tf.float32, shape=[], name='r2_placeholder')
+            metrics['R2_placeholder'] = tf.placeholder(tf.float32, shape=[], name='R2_placeholder')
+            metrics['mse_placeholder'] = tf.placeholder(tf.float32, shape=[], name='mse_placeholder')
+            metrics['summary_op'] = tf.summary.merge([
+                tf.summary.scalar('r2', metrics['r2_placeholder']),
+                tf.summary.scalar('R2', metrics['R2_placeholder']),
+                tf.summary.scalar('mse', metrics['mse_placeholder'])
+            ])
+        return metrics
+
+
+class ClassificationTrainer(BaseTrainer):
+    def __init__(self, train_batch, train_eval_batch, val_batch,
+                 train_model, train_eval_model, val_model,
+                 train_preds, train_eval_preds, val_preds,
+                 sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
+                 log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
+                 hs_weight_init, exclude_final_layer, image_summaries=True):
+        '''
+        See Trainer for args descriptions
+        '''
+        super(ClassificationTrainer, self).__init__(
+            train_batch, train_eval_batch, val_batch,
+            train_model, train_eval_model, val_model,
+            train_preds, train_eval_preds, val_preds,
+            sess, steps_per_epoch, ls_bands, nl_band, learning_rate, lr_decay,
+            log_dir, save_ckpt_prefix, init_ckpt_dir, imagenet_weights_path,
+            hs_weight_init, exclude_final_layer, image_summaries,
+            loss_fn=loss_utils.loss_xent,
+            loss_type='loss_xent',
+            results_cols=['loss_xent', 'acc'])
+
+    def eval_val(self, init_iter=None, feed_dict=None, max_nbatches=None):
+        '''Run trained model on validation dataset. Saves model checkpoint if
+        validation mse is lower than the best seen so far.
+
+        Args
+        - init_iter: tf.Operation, validation dataset iterator initializer
+            set to None if no iterator initialization is necessary
+        - feed_dict: dict, used for populating placeholders needed
+            to initialize the dataset iterator
+        - max_nbatches: int, maximum number of batches of the validation dataset to run
+            set to None to run until reaching a tf.errors.OutOfRangeError
+        '''
+        self._eval_split(
+            labels=self.val_labels,
+            preds=self.val_preds,
+            split='val',
+            eval_summaries=self.val_eval_summaries,
+            init_iter=init_iter,
+            feed_dict=feed_dict,
+            max_nbatches=max_nbatches)
+
+        # if first run or new best val mse
+        val_acc = self.results.loc[(self.epoch, 'val'), 'acc']
+        val_accs = self.results.loc[(slice(None), 'val'), 'acc']
+        if (len(val_accs) == 1) or (val_acc == val_accs.max()):
+            saved_ckpt_path = self.save_ckpt()
+            print('New best acc on val! Saved checkpoint to', saved_ckpt_path)
+
+    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+        '''Helper method to calculate loss_xent and accuracy.
+
+        Args
+        - labels: np.array, shape [N], type int32
+        - preds: np.array, shape [N, C], type float32
+        - split: str
+        - eval_summaries: dict, keys are str
+            'xent_placeholder' => tf.placeholder
+            'acc_placeholder' => tf.placeholder
+            'summary_op' => tf.Summary, merge of xent and acc summaries
+
+        Returns: xent, acc
+        '''
+        assert len(labels) == len(preds)
+        assert len(preds.shape) == 2
+
+        xent = sklearn.metrics.log_loss(y_true=labels, y_pred=preds)
+        acc = np.mean(labels == np.argmax(preds, axis=1))
+
+        num_examples = len(labels)
+        s = 'Epoch {:02d}, {} ({} examples) xent: {:0.3f}, acc: {:0.3f}'
+        print(s.format(self.epoch, split, num_examples, xent, acc))
+
+        if eval_summaries is not None:
+            summary_str = self.sess.run(eval_summaries['summary_op'], feed_dict={
+                eval_summaries['xent_placeholder']: xent,
+                eval_summaries['acc_placeholder']: acc,
+            })
+            self.summary_writer.add_summary(summary_str, self.epoch)
+        return xent, acc
+
+    def create_eval_summaries(self, scope):
+        '''
+        Args
+        - scope: str
+
+        Returns metrics: dict, keys are str
+            'xent_placeholder' => tf.placeholder
+            'acc_placeholder' => tf.placeholder
+            'summary_op' => tf.Summary, merge of xent and acc summaries
+        '''
+        metrics = {}
+        # not sure why, but we need the '/' in order to reuse the same 'train/' name for the scope
+        with tf.name_scope(scope + '/'):
+            metrics['xent_placeholder'] = tf.placeholder(tf.float32, shape=[], name='xent_placeholder')
+            metrics['acc_placeholder'] = tf.placeholder(tf.float32, shape=[], name='acc_placeholder')
+            metrics['summary_op'] = tf.summary.merge([
+                tf.summary.scalar('xent', metrics['xent_placeholder']),
+                tf.summary.scalar('acc', metrics['acc_placeholder'])
+            ])
+        return metrics
 
 
 def add_image_summaries(images, labels, preds, locs, k=1):

@@ -204,8 +204,7 @@ class DeltaBatcher(Batcher):
                         lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2),
                                  tf.stack([-delta, label2, label1]))
                 },
-                default=lambda: (img, label),  # prob 3/8, do nothing
-                exclusive=True)
+                default=lambda: (img, label))  # prob 3/8, do nothing
         else:
             ex['images'], ex['labels'] = tf.case(
                 {
@@ -216,6 +215,104 @@ class DeltaBatcher(Batcher):
                     tf.logical_and(p >= 2/8, p < 5/8):  # prob 3/8, flip image order
                         lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2), -label)
                 },
-                default=lambda: (img, label),  # prob 3/8, do nothing
-                exclusive=True)
+                default=lambda: (img, label))  # prob 3/8, do nothing
+        return ex
+
+
+class DeltaClassBatcher(DeltaBatcher):
+    def __init__(self, tfrecord_pairs, dataset, batch_size, label_name,
+                 num_threads=1, epochs=1, ls_bands='rgb', nl_band=None,
+                 shuffle=True, augment=True, negatives='zero', normalize=True, cache=False):
+        '''
+        Args
+        - see DeltaBatcher class for other args
+        - does not allow orig_labels
+        '''
+        assert label_name is not None
+
+        super(DeltaClassBatcher, self).__init__(
+            tfrecord_pairs=tfrecord_pairs,
+            dataset=dataset,
+            batch_size=batch_size,
+            label_name=label_name,
+            num_threads=num_threads,
+            epochs=epochs,
+            ls_bands=ls_bands,
+            nl_band=nl_band,
+            orig_labels=False,
+            shuffle=shuffle,
+            augment=augment,
+            negatives=negatives,
+            normalize=normalize,
+            cache=cache)
+
+    def merge_examples(self, ex1, ex2):
+        '''
+        Args
+        - ex1, ex2: each exN is a dict
+            - 'images': tf.Tensor, shape [224, 224, C], type float32
+                - channel order is [B, G, R, SWIR1, SWIR2, TEMP1, NIR, DMSP, VIIRS]
+            - 'labels': tf.Tensor, scalar, type float32
+                - default value of np.nan if self.label_name is not a key in the protobuf
+            - 'locs': tf.Tensor, type float32, shape [2], order is [lat, lon]
+            - 'years': tf.Tensor, scalar, type int32
+                - default value of -1 if 'year' is not a key in the protobuf
+
+        Returns: merged, dict
+        - 'images': tf.Tensor, shape [224, 224, C], type float32
+            - channel order is [B, G, R, SWIR1, SWIR2, TEMP1, NIR, DMSP, VIIRS]
+        - 'labels': tf.Tensor, shape scalar, type int32
+        - 'locs': tf.Tensor, shape [2], type float32, order is [lat, lon]
+        - 'years1': tf.Tensor, scalar, type int32
+        - 'years2': tf.Tensor, scalar, type int32
+        '''
+        assert_op = tf.assert_equal(ex1['locs'], ex2['locs'])
+        with tf.control_dependencies([assert_op]):
+            d = ex2['labels'] - ex1['labels']
+            delta_class = tf.case({
+                d < -0.125: lambda: 0,
+                tf.logical_and(d >= -0.125, d <= 0.125): lambda: 1,
+                d > 0.125: lambda: 2
+            })
+            merged = {
+                'images': tf.concat([ex1['images'], ex2['images']], axis=2),
+                'labels': delta_class,
+                'locs': ex1['locs'],
+                'years1': ex1['years'],
+                'years2': ex2['years'],
+            }
+        return merged
+
+    def augment_example(self, ex):
+        '''Performs image augmentation: random flips + using a single image.
+
+        Args
+        - ex: dict {'images': img, 'labels': label, ...}
+            - img: tf.Tensor, shape [H, W, 2*C], type float32
+                - if self.nl_band is not None, final band is NL
+            - label: tf.Tensor, scalar, type int32
+                - 0 = neg. delta, 1 = no delta, 2 = pos. delta
+
+        Returns: ex, with img replaced with an augmented image
+        '''
+        assert self.augment
+        img = ex['images']
+        label = ex['labels']
+
+        img = tf.image.random_flip_up_down(img)
+        img = tf.image.random_flip_left_right(img)
+        C = int(int(img.shape[2]) / 2)
+
+        # uniform var in [0, 1)
+        p = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
+        ex['images'], ex['labels'] = tf.case(
+            {
+                p < 1/8:  # prob 1/8, use 1st image only
+                    lambda: (tf.concat([img[:, :, :C], img[:, :, :C]], axis=2), 1),
+                tf.logical_and(p >= 1/8, p < 2/8):  # prob 1/8, use 2nd image only
+                    lambda: (tf.concat([img[:, :, C:], img[:, :, C:]], axis=2), 1),
+                tf.logical_and(p >= 2/8, p < 5/8):  # prob 3/8, flip image order
+                    lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2), -label + 2)
+            },
+            default=lambda: (img, label))  # prob 3/8, do nothing
         return ex
