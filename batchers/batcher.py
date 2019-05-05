@@ -160,24 +160,15 @@ class Batcher():
         # load input files as we go through shuffling and processing
         dataset = dataset.prefetch(buffer_size=2 * self.batch_size)
         dataset = dataset.map(self.process_tfrecords, num_parallel_calls=self.num_threads)
+        if self.nl_band == 'split':
+            dataset = dataset.map(self.split_nl_band)
 
-        # if augment, order: cache, shuffle, augment, split NL
-        # otherwise, order: split NL, cache, shuffle
+        if self.cache:
+            dataset = dataset.cache()
+        if self.shuffle:
+            dataset = dataset.shuffle(buffer_size=1000)
         if self.augment:
-            if self.cache:
-                dataset = dataset.cache()
-            if self.shuffle:
-                dataset = dataset.shuffle(buffer_size=1000)
             dataset = dataset.map(self.augment_example)
-            if self.nl_band == 'split':
-                dataset = dataset.map(self.split_nl_band)
-        else:
-            if self.nl_band == 'split':
-                dataset = dataset.map(self.split_nl_band)
-            if self.cache:
-                dataset = dataset.cache()
-            if self.shuffle:
-                dataset = dataset.shuffle(buffer_size=1000)
 
         # batch then repeat => batches respect epoch boundaries
         # - i.e. last batch of each epoch might be smaller than batch_size
@@ -294,11 +285,12 @@ class Batcher():
 
     def augment_example(self, ex):
         '''Performs image augmentation (random flips + levels adjustments).
+        Does not perform level adjustments on NL band(s).
 
         Args
         - ex: dict {'images': img, ...}
             - img: tf.Tensor, shape [H, W, C], type float32
-                if self.nl_band is not None, final band is NL
+                NL band depends on self.ls_bands and self.nl_band
 
         Returns: ex, with img replaced with an augmented image
         '''
@@ -307,32 +299,39 @@ class Batcher():
 
         img = tf.image.random_flip_up_down(img)
         img = tf.image.random_flip_left_right(img)
-
-        # only do random brightness / contrast on non-NL bands
-        if self.ls_bands is not None:
-            if self.nl_band is None:
-                img = self.augment_levels(img)
-            else:
-                img_nonl = self.augment_levels(img[:, :, 0:-1])
-                img = tf.concat([img_nonl, img[:, :, -1:]], axis=2)
+        img = self.augment_levels(img)
 
         ex['images'] = img
         return ex
 
-    def augment_levels(self, image):
+    def augment_levels(self, img):
         '''Perform random brightness / contrast on the image.
-
-        NOTE: Do NOT use this on the nightlights band!
+        Does not perform level adjustments on NL band(s).
 
         Args
-        - image: tf.Tensor, shape [H, W, C], type float32
+        - img: tf.Tensor, shape [H, W, C], type float32
+            - self.nl_band = 'merge' => final band is NL band
+            - self.nl_band = 'split' => last 2 bands are NL bands
 
         Returns: tf.Tensor with data augmentation applied
         '''
-        # up to 0.5 std dev brightness change
-        image = tf.image.random_brightness(image, max_delta=0.5)
-        image = tf.image.random_contrast(image, lower=0.75, upper=1.25)
-        return image
+        def rand_levels(image):
+            # up to 0.5 std dev brightness change
+            image = tf.image.random_brightness(image, max_delta=0.5)
+            image = tf.image.random_contrast(image, lower=0.75, upper=1.25)
+            return image
+
+        # only do random brightness / contrast on non-NL bands
+        if self.ls_bands is not None:
+            if self.nl_band is None:
+                img = rand_levels(img)
+            elif self.nl_band == 'merge':
+                img_nonl = rand_levels(img[:, :, :-1])
+                img = tf.concat([img_nonl, img[:, :, -1:]], axis=2)
+            elif self.nl_band == 'split':
+                img_nonl = rand_levels(img[:, :, :-2])
+                img = tf.concat([img_nonl, img[:, :, -2:]], axis=2)
+        return img
 
 
 class UrbanBatcher(Batcher):

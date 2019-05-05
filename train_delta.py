@@ -29,7 +29,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     - nl_band: one of [None, 'merge', 'split']
     - label_name: str, name of the label in the TFRecord file
     - orig_labels: bool, whether to include original labels for multi-task training
-    - augment: bool
+    - augment: str
     - learning_rate: float
     - lr_decay: float
     - max_epochs: int
@@ -123,7 +123,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
         train_eval_batcher = get_batcher(
             train_tfrecord_pairs_ph,
             shuffle=False,
-            augment=False,
+            augment='none',
             epochs=max_epochs + 1,  # may need extra epoch at the end of training
             cache='train_eval' in cache,
             orig_labels=orig_labels)
@@ -133,7 +133,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
         val_batcher = get_batcher(
             val_tfrecord_pairs_ph,
             shuffle=False,
-            augment=False,
+            augment='none',
             epochs=max_epochs + 1,  # may need extra epoch at the end of training
             cache='val' in cache,
             orig_labels=orig_labels)
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     flags.DEFINE_string('label_name', 'wealthpooled', 'name of label to use from the TFRecord files')
     flags.DEFINE_boolean('orig_labels', False, 'whether to include original labels for multi-task training')
     flags.DEFINE_integer('batch_size', 64, 'batch size')
-    flags.DEFINE_boolean('augment', True, 'whether to use data augmentation')
+    flags.DEFINE_string('augment', 'bidir', 'whether to use data augmentation, one of ["none", "bidir", "forward"]')
     flags.DEFINE_float('fc_reg', 1e-3, 'regularization penalty factor for fully connected layers')
     flags.DEFINE_float('conv_reg', 1e-3, 'regularization penalty factor for convolution layers')
     flags.DEFINE_float('lr', 1e-3, 'learning rate')

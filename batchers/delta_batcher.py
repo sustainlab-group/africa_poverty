@@ -47,17 +47,23 @@ def get_lsms_tfrecord_pairs(indices_dict):
 class DeltaBatcher(Batcher):
     def __init__(self, tfrecord_pairs, dataset, batch_size, label_name,
                  num_threads=1, epochs=1, ls_bands='rgb', nl_band=None, orig_labels=False,
-                 shuffle=True, augment=True, negatives='zero', normalize=True, cache=False):
+                 shuffle=True, augment='forward', negatives='zero', normalize=True, cache=False):
         '''
         Args
         - tfrecord_pairs: tf.Tensor, type str, shape [N, 2], each row is [path1, path2]
             - pairs of paths to TFRecord files containing satellite images
         - orig_labels: bool, whether to include the original labels (for multi-task training)
+        - augment: str, one of ['none', 'bidir', 'forward']
+            - False: no data augmentation
+            - 'bidir': randomly flip order of images and labels, random brightness/contrast, random flips
+            - 'forward': only random brightness/contrast and random flips
         - see Batcher class for other args
         - does not allow label_name to be None
         - does not allow for nl_label
         '''
         assert label_name is not None
+        assert augment in ['none', 'bidir', 'forward']
+
         self.orig_labels = orig_labels
 
         super(DeltaBatcher, self).__init__(
@@ -118,7 +124,7 @@ class DeltaBatcher(Batcher):
             ds = ds.cache()
         if self.shuffle:
             ds = ds.shuffle(buffer_size=1000)
-        if self.augment:
+        if self.augment != 'none':
             ds = ds.map(self.augment_example)
 
         # batch then repeat => batches respect epoch boundaries
@@ -180,7 +186,7 @@ class DeltaBatcher(Batcher):
 
         Returns: ex, with img replaced with an augmented image
         '''
-        assert self.augment
+        assert self.augment != 'none'
         img = ex['images']
         label = ex['labels']
 
@@ -190,7 +196,7 @@ class DeltaBatcher(Batcher):
 
         # uniform var in [0, 1)
         p = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
-        if self.orig_labels:
+        if self.orig_labels and self.augment == 'bidir':
             delta, label1, label2 = ex['labels'][0], ex['labels'][1], ex['labels'][2]
             img1 = img[:, :, :C]
             img2 = img[:, :, C:]
@@ -207,7 +213,7 @@ class DeltaBatcher(Batcher):
                                  tf.stack([-delta, label2, label1]))
                 },
                 default=lambda: (img, label))  # prob 3/8, do nothing
-        else:
+        elif not self.orig_labels and self.augment == 'bidir':
             img1 = img[:, :, :C]
             img2 = img[:, :, C:]
             ex['images'], ex['labels'] = tf.case(
@@ -220,13 +226,21 @@ class DeltaBatcher(Batcher):
                         lambda: (tf.concat([img2, img1], axis=2), -label)
                 },
                 default=lambda: (img, label))  # prob 3/8, do nothing
+
+        # up to 0.5 std dev brightness change
+        # - applied independently to 1st and 2nd image
+        # - only performed on non-NL bands
+        img1 = self.augment_levels(ex['images'][:, :, :C])
+        img2 = self.augment_levels(ex['images'][:, :, C:])
+        ex['images'] = tf.concat([img1, img2], axis=2)
+
         return ex
 
 
 class DeltaClassBatcher(DeltaBatcher):
     def __init__(self, tfrecord_pairs, dataset, batch_size, label_name,
                  num_threads=1, epochs=1, ls_bands='rgb', nl_band=None,
-                 shuffle=True, augment=True, negatives='zero', normalize=True, cache=False):
+                 shuffle=True, augment='forward', negatives='zero', normalize=True, cache=False):
         '''
         Args
         - see DeltaBatcher class for other args
@@ -299,7 +313,7 @@ class DeltaClassBatcher(DeltaBatcher):
 
         Returns: ex, with img replaced with an augmented image
         '''
-        assert self.augment
+        assert self.augment != 'none'
         img = ex['images']
         label = ex['labels']
 
@@ -307,16 +321,25 @@ class DeltaClassBatcher(DeltaBatcher):
         img = tf.image.random_flip_left_right(img)
         C = int(int(img.shape[2]) / 2)
 
-        # uniform var in [0, 1)
-        p = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
-        ex['images'], ex['labels'] = tf.case(
-            {
-                p < 1/8:  # prob 1/8, use 1st image only
-                    lambda: (tf.concat([img[:, :, :C], img[:, :, :C]], axis=2), 1),
-                tf.logical_and(p >= 1/8, p < 2/8):  # prob 1/8, use 2nd image only
-                    lambda: (tf.concat([img[:, :, C:], img[:, :, C:]], axis=2), 1),
-                tf.logical_and(p >= 2/8, p < 5/8):  # prob 3/8, flip image order
-                    lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2), -label + 2)
-            },
-            default=lambda: (img, label))  # prob 3/8, do nothing
+        if self.augment == 'bidir':
+            # uniform var in [0, 1)
+            p = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
+            ex['images'], ex['labels'] = tf.case(
+                {
+                    p < 1/8:  # prob 1/8, use 1st image only
+                        lambda: (tf.concat([img[:, :, :C], img[:, :, :C]], axis=2), 1),
+                    (p >= 1/8) & (p < 2/8):  # prob 1/8, use 2nd image only
+                        lambda: (tf.concat([img[:, :, C:], img[:, :, C:]], axis=2), 1),
+                    (p >= 2/8) & (p < 5/8):  # prob 3/8, flip image order
+                        lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2), -label + 2)
+                },
+                default=lambda: (img, label))  # prob 3/8, do nothing
+
+        # up to 0.5 std dev brightness change
+        # - applied independently to 1st and 2nd image
+        # - only performed on non-NL bands
+        img1 = self.augment_levels(ex['images'][:, :, :C])
+        img2 = self.augment_levels(ex['images'][:, :, C:])
+        ex['images'] = tf.concat([img1, img2], axis=2)
+
         return ex
