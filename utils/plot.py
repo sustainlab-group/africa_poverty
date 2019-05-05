@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}', figsize=None):
+def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}',
+            figsize=None, xlabel=None, ylabel=None):
     '''Creates a heatmap plot of the given matrix.
 
     Args
@@ -24,6 +25,12 @@ def heatmap(mat, xlabels, ylabels, title=None, format_spec='{:.1f}', figsize=Non
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     im = ax.imshow(mat, cmap='viridis')
     fig.colorbar(im, ax=ax)
+
+    # set axis labels
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if ylabel is not None:
+        ax.set_ylabel(ylabel)
 
     # show all ticks
     ax.set_xticks(range(n))

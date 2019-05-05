@@ -19,7 +19,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     Args
     - sess: tf.Session
     - ooc: bool, whether to use out-of-country split, must be False
-    - batcher: str, batcher type, one of ["delta", "deltaclass"]
+    - batcher: str, batcher type, one of ['delta', 'deltaclass']
     - dataset: str, e.g. 'LSMSDeltaIncountryA'
     - keep_frac: float, only supports 1.0
     - model_name: str, must be 'resnet'

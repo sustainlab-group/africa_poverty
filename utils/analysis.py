@@ -58,6 +58,21 @@ def evaluate(labels, preds, do_print=False, title=None):
     return r2, R2, mse, rank
 
 
+def evaluate_df(df):
+    '''Runs `evaluate` on a pandas DataFrame.
+
+    Example usage
+    >>> preds_df.groupby('bands').apply(evaluate_df)
+
+    Args
+    - df: pd.DataFrame, columns include ['preds', 'labels']
+
+    Returns: pd.Series, index = ['r2', 'R2', 'mse', 'rank']
+    '''
+    r2, R2, mse, rank = evaluate(df['preds'], df['labels'])
+    return pd.Series({'r2': r2, 'R2': R2, 'mse': mse, 'rank': rank})
+
+
 def plot_predictions(labels, preds, title=None):
     '''
     Args

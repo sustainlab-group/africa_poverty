@@ -17,3 +17,16 @@ def load_npz(path, verbose=True):
             if verbose:
                 print('{k}: dtype={d}, shape={s}'.format(k=key, d=value.dtype, s=value.shape))
     return result
+
+
+def colordisplay(df, columns=None, cmap='coolwarm'):
+    '''Displays a pandas DataFrame with background color.
+
+    This function should only be called inside a Jupyter Notebook.
+
+    Args
+    - df: pd.DataFrame
+    - columns: str or list of str, column(s) to color
+    - cmap: str, name of matplotlib colormap
+    '''
+    display(df.style.background_gradient(cmap=cmap, subset=columns))

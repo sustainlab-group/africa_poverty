@@ -96,23 +96,23 @@ class Batcher():
         self.cache = cache
 
         if ls_bands not in [None, 'rgb', 'ms']:
-            raise ValueError(f"Error: got {ls_bands} for 'ls_bands'")
+            raise ValueError(f'Error: got {ls_bands} for "ls_bands"')
         self.ls_bands = ls_bands
 
         if dataset not in MEANS_DICT:
-            raise ValueError(f"Error: got {dataset} for 'dataset'")
+            raise ValueError(f'Error: got {dataset} for "dataset"')
         self.dataset = dataset
 
         if negatives not in [None, 'zero']:
-            raise ValueError(f"Error: got {negatives} for 'negatives'")
+            raise ValueError(f'Error: got {negatives} for "negatives"')
         self.negatives = negatives
 
         if nl_band not in [None, 'merge', 'split']:
-            raise ValueError(f"Error: got {nl_band} for 'nl_band'")
+            raise ValueError(f'Error: got {nl_band} for "nl_band"')
         self.nl_band = nl_band
 
         if nl_label not in [None, 'center', 'mean']:
-            raise ValueError(f"Error: got {nl_label} for 'nl_label'")
+            raise ValueError(f'Error: got {nl_label} for "nl_label"')
         self.nl_label = nl_label
 
     def get_batch(self):

@@ -192,28 +192,32 @@ class DeltaBatcher(Batcher):
         p = tf.random_uniform(shape=[], minval=0., maxval=1., dtype=tf.float32)
         if self.orig_labels:
             delta, label1, label2 = ex['labels'][0], ex['labels'][1], ex['labels'][2]
+            img1 = img[:, :, :C]
+            img2 = img[:, :, C:]
             ex['images'], ex['labels'] = tf.case(
                 {
                     p < 1/8:  # prob 1/8, use 1st image only
-                        lambda: (tf.concat([img[:, :, :C], img[:, :, :C]], axis=2),
+                        lambda: (tf.concat([img1, img1], axis=2),
                                  tf.stack([0.0, label1, label1])),
-                    tf.logical_and(p >= 1/8, p < 2/8):  # prob 1/8, use 2nd image only
-                        lambda: (tf.concat([img[:, :, C:], img[:, :, C:]], axis=2),
+                    (p >= 1/8) & (p < 2/8):  # prob 1/8, use 2nd image only
+                        lambda: (tf.concat([img2, img2], axis=2),
                                  tf.stack([0.0, label2, label2])),
-                    tf.logical_and(p >= 2/8, p < 5/8):  # prob 3/8, flip image order
-                        lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2),
+                    (p >= 2/8) & (p < 5/8):  # prob 3/8, flip image order
+                        lambda: (tf.concat([img2, img1], axis=2),
                                  tf.stack([-delta, label2, label1]))
                 },
                 default=lambda: (img, label))  # prob 3/8, do nothing
         else:
+            img1 = img[:, :, :C]
+            img2 = img[:, :, C:]
             ex['images'], ex['labels'] = tf.case(
                 {
                     p < 1/8:  # prob 1/8, use 1st image only
-                        lambda: (tf.concat([img[:, :, :C], img[:, :, :C]], axis=2), 0.0),
-                    tf.logical_and(p >= 1/8, p < 2/8):  # prob 1/8, use 2nd image only
-                        lambda: (tf.concat([img[:, :, C:], img[:, :, C:]], axis=2), 0.0),
-                    tf.logical_and(p >= 2/8, p < 5/8):  # prob 3/8, flip image order
-                        lambda: (tf.concat([img[:, :, C:], img[:, :, :C]], axis=2), -label)
+                        lambda: (tf.concat([img1, img1], axis=2), 0.0),
+                    (p >= 1/8) & (p < 2/8):  # prob 1/8, use 2nd image only
+                        lambda: (tf.concat([img2, img2], axis=2), 0.0),
+                    (p >= 2/8) & (p < 5/8):  # prob 3/8, flip image order
+                        lambda: (tf.concat([img2, img1], axis=2), -label)
                 },
                 default=lambda: (img, label))  # prob 3/8, do nothing
         return ex
@@ -271,7 +275,7 @@ class DeltaClassBatcher(DeltaBatcher):
             d = ex2['labels'] - ex1['labels']
             delta_class = tf.case({
                 d < -0.125: lambda: 0,
-                tf.logical_and(d >= -0.125, d <= 0.125): lambda: 1,
+                (d >= -0.125) & (d <= 0.125): lambda: 1,
                 d > 0.125: lambda: 2
             })
             merged = {
