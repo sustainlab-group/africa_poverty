@@ -61,7 +61,7 @@ def setup_ax(fig):
     return ax
 
 
-def plot_locs(locs, figsize=[15, 15], title=None, colors=None, cbar_label=None):
+def plot_locs(locs, figsize=(15, 15), title=None, colors=None, cbar_label=None):
     '''
     Args
     - locs: np.array, shape [N, 2], each row is [lat, lon]

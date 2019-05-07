@@ -5,8 +5,6 @@ import seaborn as sns
 import scipy
 import sklearn.metrics
 
-sns.set(style='white', color_codes=True)
-
 
 def calc_score(labels, preds, metric):
     '''
@@ -80,8 +78,9 @@ def plot_predictions(labels, preds, title=None):
     - preds: list of preds, length n
     - title: str
     '''
-    g = sns.jointplot(x=labels, y=preds, kind='reg',
-                      joint_kws={'scatter_kws': {'s': 5}})
+    with sns.axes_style('whitegrid'):
+        g = sns.jointplot(x=labels, y=preds, kind='reg',
+                          joint_kws={'scatter_kws': {'s': 5}})
     g.set_axis_labels('True Label', 'Predicted Label')
     if title is not None:
         g.fig.suptitle(title)

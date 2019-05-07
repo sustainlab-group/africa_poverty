@@ -1,3 +1,17 @@
+**dhs_wealth_index.csv**
+- DHS survey data
+- columns
+  - "cluster": index of the village within a survey
+  - "svyid": survey ID, includes country and year that the survey started
+  - "wealthpooled": the "asset wealth index" (AWI) of each household, standardized across all surveys, then averaged to the cluster level
+  - "wealthpooled5country": same as "wealthpooled" but normalized only in the 5 countries used in the original work by Michael and Neal (Uganda, Nigeria, Tanzania, Malawi, Rwanda)
+  - "wealth": AWI standardized within each country at the household level, aggregated to the cluster level
+  - "households": number of households surveyed in the cluster
+  - "LATNUM": latitude
+  - "LONGNUM": longitude
+  - "URBAN_RURA": "U" for urban, "R" for rural
+  - "year": year that the cluster was surveyed; the survey year corresponds to the start of the survey, but some clusters may be surveyed in later years
+
 **image_hists_lsms.npz**
 
 - created in `models/baselines_lsms.ipynb`

@@ -5,6 +5,19 @@ import numpy as np
 import tensorflow as tf
 
 
+def parse_record_str(record_str):
+    '''Parses a record str and returns the feature map.
+
+    Args
+    - record_str: str, binary representation of Example message
+    '''
+    # parse binary string into Example message
+    ex = tf.train.Example.FromString(record_str)
+    features = ex.features  # get Features message within the Example
+    feature_map = features.feature  # get mapping from feature name strings to Feature
+    return feature_map
+
+
 def get_first_feature_map(tfrecord_path):
     '''Gets feature_map dict of 1st TFRecord in a TFRecord file.
 
@@ -21,9 +34,7 @@ def get_first_feature_map(tfrecord_path):
 
     # get the first Example stored in the TFRecords file
     record_str = next(iterator)
-    ex = tf.train.Example.FromString(record_str)  # parse binary string into actual Example message
-    features = ex.features  # get the Features message within the Example
-    feature_map = features.feature  # get the mapping from feature name strings to Feature
+    feature_map = parse_record_str(record_str)
     return feature_map
 
 
@@ -44,6 +55,23 @@ def get_feature_types(feature_map):
         ft_shape = np.array(feature_map[name].__getattribute__(ft_type).value).shape
         feature_types[name] = (ft_type, ft_shape)
     return feature_types
+
+
+def print_scalar_values(feature_map):
+    '''Prints scalar values from a TFRecord feature map.
+
+    Args
+    - feature_map: protobuf map from feature name strings to Feature
+    '''
+    for name in sorted(feature_map.keys()):
+        ft_type = feature_map[name].WhichOneof('kind')
+        ft_shape = np.array(feature_map[name].__getattribute__(ft_type).value).shape
+        if ft_type == 'float_list' and ft_shape == (1,):
+            value = feature_map[name].float_list.value[0]
+            print(f'{name}: {value}')
+        elif ft_type == 'bytes_list' and ft_shape == (1,):
+            value = feature_map[name].bytes_list.value[0].decode()
+            print(f'{name}: {value}')
 
 
 def add_to_heap(h, k, value, data):

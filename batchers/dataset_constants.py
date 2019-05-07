@@ -2,8 +2,7 @@ DHS_COUNTRIES = [
     'angola', 'benin', 'burkina_faso', 'cameroon', 'cote_d_ivoire',
     'democratic_republic_of_congo', 'ethiopia', 'ghana', 'guinea', 'kenya',
     'lesotho', 'malawi', 'mali', 'mozambique', 'nigeria', 'rwanda', 'senegal',
-    'sierra_leone', 'tanzania', 'togo', 'uganda', 'zambia', 'zimbabwe'
-]
+    'sierra_leone', 'tanzania', 'togo', 'uganda', 'zambia', 'zimbabwe']
 
 LSMS_COUNTRIES = ['ethiopia', 'malawi', 'nigeria', 'tanzania', 'uganda']
 
@@ -11,6 +10,18 @@ _SURVEY_NAMES_5country = {
     'train': ['uganda_2011', 'tanzania_2010', 'rwanda_2010', 'nigeria_2013'],
     'val': ['malawi_2010'],
     'test': []
+}
+
+_SURVEY_NAMES_2009_17 = {
+    'train': ['benin_2012', 'democratic_republic_of_congo_2013', 'guinea_2012', 'kenya_2014',
+              'kenya_2015', 'malawi_2010', 'malawi_2012', 'malawi_2014', 'malawi_2015', 'nigeria_2010',
+              'nigeria_2013', 'nigeria_2015', 'rwanda_2010', 'rwanda_2014', 'senegal_2010',
+              'senegal_2012', 'sierra_leone_2013', 'tanzania_2010', 'tanzania_2011', 'tanzania_2015',
+              'togo_2013', 'uganda_2009', 'uganda_2011', 'uganda_2014', 'zimbabwe_2010', 'zimbabwe_2015'],
+    'val': ['burkina_faso_2010', 'burkina_faso_2014', 'cote_d_ivoire_2012', 'ghana_2014',
+            'ghana_2016', 'lesotho_2009', 'lesotho_2014', 'zambia_2013'],
+    'test': ['angola_2011', 'angola_2015', 'cameroon_2011', 'ethiopia_2010', 'ethiopia_2016',
+             'mali_2012', 'mali_2015', 'mozambique_2009', 'mozambique_2011'],
 }
 
 _SURVEY_NAMES_2009_17A = {
@@ -55,6 +66,7 @@ _SURVEY_NAMES_LSMS = ['ethiopia_2011', 'ethiopia_2015', 'malawi_2010', 'malawi_2
 
 SURVEY_NAMES = {
     '5country': _SURVEY_NAMES_5country,
+    '2009-17': _SURVEY_NAMES_2009_17,
     '2009-17A': _SURVEY_NAMES_2009_17A,
     '2009-17B': _SURVEY_NAMES_2009_17B,
     '2009-17C': _SURVEY_NAMES_2009_17C,
@@ -64,6 +76,7 @@ SURVEY_NAMES = {
 }
 
 SIZES = {
+    '2009-17': {'train': 12319, 'val': 3257, 'test': 4093, 'all': 19669},
     '2009-17nl': {'all': 261396},
     '2009-17A': {'train': 11797, 'val': 3909, 'test': 3963, 'all': 19669},
     '2009-17B': {'train': 11820, 'val': 3940, 'test': 3909, 'all': 19669},
@@ -83,6 +96,7 @@ SIZES = {
 }
 
 URBAN_SIZES = {
+    '2009-17': {'train': 3954, 'val': 1212, 'test': 1635, 'all': 6801},
     '2009-17A': {'train': 4264, 'val': 1221, 'test': 1316, 'all': 6801},
     '2009-17B': {'train': 4225, 'val': 1355, 'test': 1221, 'all': 6801},
     '2009-17C': {'train': 4010, 'val': 1436, 'test': 1355, 'all': 6801},
@@ -91,6 +105,7 @@ URBAN_SIZES = {
 }
 
 RURAL_SIZES = {
+    '2009-17': {'train': 8365, 'val': 2045, 'test': 2458, 'all': 12868},
     '2009-17A': {'train': 7533, 'val': 2688, 'test': 2647, 'all': 12868},
     '2009-17B': {'train': 7595, 'val': 2585, 'test': 2688, 'all': 12868},
     '2009-17C': {'train': 7790, 'val': 2493, 'test': 2585, 'all': 12868},
