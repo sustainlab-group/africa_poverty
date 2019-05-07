@@ -1,17 +1,20 @@
 from batchers.batcher import Batcher, get_lsms_tfrecord_paths
 from batchers.dataset_constants import SURVEY_NAMES
 
-from collections import defaultdict
+import os
 
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
 
+ROOT_DIR = '/atlas/u/chrisyeh/africa_poverty/'
+
+
 def get_lsms_tfrecord_pairs(indices_dict):
     '''
     Args
-    - indices_dict: maps str => list of indices
+    - indices_dict: dict, str => np.array of indices, the np.arrays are mutually exclusive
         or None to get all pairs
 
     Returns: np.array or dict
@@ -23,7 +26,7 @@ def get_lsms_tfrecord_pairs(indices_dict):
             images of the same location such that year1 < year2
     '''
     tfrecord_paths = np.asarray(get_lsms_tfrecord_paths(SURVEY_NAMES['LSMS']))
-    delta_pairs_df = pd.read_csv('/atlas/u/chrisyeh/africa_poverty/data/lsms_deltas_pairs.csv')
+    delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_deltas_pairs.csv'))
 
     if indices_dict is None:
         paths1 = tfrecord_paths[delta_pairs_df['index1'].values]
@@ -31,16 +34,11 @@ def get_lsms_tfrecord_pairs(indices_dict):
         pairs = np.stack([paths1, paths2], axis=1)
         return pairs
     else:
-        paths_dict = defaultdict(list)
-        for i1, i2 in zip(delta_pairs_df['index1'], delta_pairs_df['index2']):
-            for k, indices in indices_dict.items():
-                isin = np.isin([i1, i2], indices)
-                assert isin[0] == isin[1]
-                if isin[0]:
-                    pair = tfrecord_paths[[i1, i2]]
-                    paths_dict[k].append(pair)
-        for k in paths_dict:
-            paths_dict[k] = np.stack(paths_dict[k], axis=0)
+        paths_dict = {}
+        for k, indices in indices_dict.items():
+            mask = delta_pairs_df['index1'].isin(indices)
+            assert np.all(mask == delta_pairs_df['index2'].isin(indices))
+            paths_dict[k] = tfrecord_paths[delta_pairs_df.loc[mask, ['index1', 'index2']].values]
         return paths_dict
 
 

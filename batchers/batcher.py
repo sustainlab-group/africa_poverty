@@ -6,8 +6,9 @@ import os
 import tensorflow as tf
 
 
-TFRECORDS_PATH_ROOT = '/atlas/u/chrisyeh/poverty_data/lxv3_water/'
-LSMS_TFRECORDS_PATH_ROOT = '/atlas/u/chrisyeh/poverty_data/lsms/'
+ROOT_DIR = '/atlas/u/chrisyeh/africa_poverty/'
+DHS_TFRECORDS_PATH_ROOT = os.path.join(ROOT_DIR, 'data/dhs_tfrecords')
+LSMS_TFRECORDS_PATH_ROOT = os.path.join(ROOT_DIR, 'data/lsms_tfrecords')
 
 
 def get_tfrecord_paths(dataset, split='all'):
@@ -29,7 +30,7 @@ def get_tfrecord_paths(dataset, split='all'):
     tfrecord_paths = []
     for split in splits:
         for country_year in survey_names[split]:
-            glob_path = os.path.join(TFRECORDS_PATH_ROOT, country_year + '*', '*.tfrecord.gz')
+            glob_path = os.path.join(DHS_TFRECORDS_PATH_ROOT, country_year + '*', '*.tfrecord.gz')
             tfrecord_paths.extend(glob(glob_path))
     tfrecord_paths = sorted(tfrecord_paths)
     assert len(tfrecord_paths) == expected_size
@@ -192,8 +193,9 @@ class Batcher():
         - img: tf.Tensor, shape [224, 224, C], type float32
           - channel order is [B, G, R, SWIR1, SWIR2, TEMP1, NIR, NIGHTLIGHTS]
         - label: tf.Tensor, scalar or shape [2], type float32
-          - default value of np.nan if self.label_name is not a key in the protobuf
-          - [label, nl_label] (shape [2]) if self.label_name and self.nl_label are not None
+          - not returned if both self.label_name and self.nl_label are None
+          - [label, nl_label] (shape [2]) if self.label_name and self.nl_label are both not None
+          - otherwise, is a scalar tf.Tensor containing the single label
         - loc: tf.Tensor, shape [2], type float32, order is [lat, lon]
         - year: tf.Tensor, scalar, type int32
           - default value of -1 if 'year' is not a key in the protobuf
@@ -241,6 +243,8 @@ class Batcher():
                         ex[band] = (ex[band] - means[band]) / std_devs[band]
             img = tf.stack([ex[band] for band in bands], axis=2)
 
+        result = {'images': img, 'locs': loc, 'years': year}
+
         if self.nl_label == 'mean':
             nl_label = tf.reduce_mean(ex['NIGHTLIGHTS'])
         elif self.nl_label == 'center':
@@ -248,7 +252,7 @@ class Batcher():
 
         if self.label_name is None:
             if self.nl_label is None:
-                label = float('nan')
+                label = None
             else:
                 label = nl_label
         else:
@@ -256,7 +260,10 @@ class Batcher():
             if self.nl_label is not None:
                 label = tf.stack([label, nl_label])
 
-        return {'images': img, 'labels': label, 'locs': loc, 'years': year}
+        if label is not None:
+            result['labels'] = label
+
+        return result
 
     def split_nl_band(self, ex):
         '''Splits the NL band into separate DMSP and VIIRS bands.

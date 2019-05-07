@@ -2,6 +2,9 @@
 ckpts/
 logs/
 outputs/
+data/dhs_surveys*
+data/dhs_tfrecords*
+data/lsms_tfrecords*
 # END CUSTOM EXCLUSIONS
 
 
