@@ -208,7 +208,9 @@ class Batcher():
         if self.nl_band is not None:
             bands += ['NIGHTLIGHTS']
 
-        scalar_float_keys = ['lat', 'lon', 'year', self.label_name]
+        scalar_float_keys = ['lat', 'lon', 'year']
+        if self.label_name is not None:
+            scalar_float_keys.append(self.label_name)
 
         keys_to_features = {}
         for band in bands:

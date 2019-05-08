@@ -1,12 +1,13 @@
 import tensorflow as tf
 
 
-def loss_mse(labels, preds, add_summaries=True):
+def loss_mse(labels, preds, weights=None, add_summaries=True):
     '''Computes the mean squared-error between preds and labels.
 
     Args
     - labels: tf.Tensor, shape [batch_size] or [batch_size, labels_dim]
     - preds: tf.Tensor, same shape as labels, type float32
+    - weights: tf.Tensor, scalar or shape [batch_size], type float
     - add_sumaries: bool, whether to create summaries for the loss variables
 
     Returns
@@ -14,7 +15,13 @@ def loss_mse(labels, preds, add_summaries=True):
     - loss_mse: tf.Tensor, scalar, mean squared-error loss over the batch
     - loss_reg: tf.Tensor, scalar, regularization loss
     '''
-    loss_mse = tf.losses.mean_squared_error(labels, preds)
+    if weights is None:
+        weights = 1.0
+    loss_mse = tf.losses.mean_squared_error(
+        labels=labels,
+        predictions=preds,
+        weights=weights,
+        reduction=tf.losses.Reduction.SUM_BY_NONZERO_WEIGHTS)
     loss_total, loss_reg, loss_summaries = _loss_helper(
         loss_mse,
         loss_name='loss_mse',
@@ -22,13 +29,14 @@ def loss_mse(labels, preds, add_summaries=True):
     return loss_total, loss_mse, loss_reg, loss_summaries
 
 
-def loss_xent(labels, logits, add_summaries=True):
+def loss_xent(labels, logits, weights=None, add_summaries=True):
     '''Takes a softmax over logits, then calculates cross-entropy loss with the
     given labels.
 
     Args
     - labels: tf.Tensor, shape [batch_size], type int32, elements in [0, num_classes)
     - logits: tf.Tensor, shape [batch_size, num_classes], type float32
+    - weights: tf.Tensor, scalar or shape [batch_size], type float
     - add_sumaries: bool, whether to create summaries for the loss variables
 
     Returns
@@ -37,9 +45,12 @@ def loss_xent(labels, logits, add_summaries=True):
     - loss_reg: tf.Tensor, scalar, regularization loss
     - loss_summaries: tf.summary if add_summaries is True, None otherwise
     '''
+    if weights is None:
+        weights = 1.0
     loss_xent = tf.losses.sparse_softmax_cross_entropy(
         labels=labels,
         logits=logits,
+        weights=weights,
         reduction=tf.losses.Reduction.SUM_BY_NONZERO_WEIGHTS)
     loss_total, loss_reg, loss_summaries = _loss_helper(
         loss_xent,

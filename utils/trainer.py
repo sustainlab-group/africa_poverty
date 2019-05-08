@@ -41,7 +41,7 @@ class BaseTrainer(object):
         - hs_weight_init: str
         - exclude_final_layer: bool or None
         - image_summaries: bool, whether to add image summaries
-        - loss_fn: function
+        - loss_fn: function, has signature loss_fn(labels, preds, weights)
         - loss_type: str, one of ['loss_mse', 'loss_xent']
         - results_cols: list of str, columns matching the return values of self.evaluate_preds()
         '''
@@ -54,6 +54,10 @@ class BaseTrainer(object):
         self.train_images = train_batch['images']
         self.train_labels = train_batch['labels']
         self.train_locs = train_batch['locs']
+
+        self.train_weights = train_batch.get('weights', None)
+        self.train_eval_weights = train_eval_batch.get('weights', None)
+        self.val_weights = val_batch.get('weights', None)
 
         self.train_eval_labels = train_eval_batch['labels']
         self.val_labels = val_batch['labels']
@@ -68,7 +72,7 @@ class BaseTrainer(object):
         self.loss_type = loss_type
         with tf.variable_scope('train'):  # use 'train' scope to distinguish from 'val' losses
             self.train_loss_total, self.train_loss_nonreg, _, train_loss_summaries = \
-                loss_fn(self.train_labels, self.train_preds)
+                loss_fn(self.train_labels, self.train_preds, self.train_weights)
 
         self.lr_ph = tf.placeholder(dtype=tf.float32, shape=[], name='lr_placeholder')
         optimizer = tf.train.AdamOptimizer(self.lr_ph)
@@ -153,6 +157,13 @@ class BaseTrainer(object):
         feed_dict = {self.lr_ph: self.learning_rate * (self.lr_decay ** self.epoch)}
         step_str = 'Step {:05d}. Epoch {:02d}. {}: {:0.4f}, loss_tot: {:0.4f}, time: {:0.3f}s'
 
+        if self.train_weights is None:
+            weights_all = None
+            required_ops = (self.train_preds, self.train_labels, self.train_op)
+        else:
+            weights_all = []
+            required_ops = (self.train_preds, self.train_labels, self.train_weights, self.train_op)
+
         try:
             while True:
                 curr_epoch = int(self.step * 1.0 / self.steps_per_epoch)
@@ -162,35 +173,45 @@ class BaseTrainer(object):
 
                 if self.step % print_every == 0:
                     start_time = time.time()
-                    loss_total, loss_nonreg, preds, labels, summary, _ = self.sess.run([
-                        self.train_loss_total, self.train_loss_nonreg,
-                        self.train_preds, self.train_labels,
-                        self.step_summaries_op, self.train_op], feed_dict=feed_dict)
+                    loss_total, loss_nonreg, summary, result = self.sess.run([
+                        self.train_loss_total, self.train_loss_nonreg, self.step_summaries_op,
+                        required_ops], feed_dict=feed_dict)
                     duration = time.time() - start_time
                     print(step_str.format(self.step, self.epoch, self.loss_type, loss_nonreg, loss_total, duration))
                     self.summary_writer.add_summary(summary, self.step)
                 else:
-                    preds, labels, _ = self.sess.run([
-                        self.train_preds, self.train_labels, self.train_op], feed_dict=feed_dict)
+                    result = self.sess.run(required_ops, feed_dict=feed_dict)
 
                 self.step += 1
-                preds_all.append(preds)
-                labels_all.append(labels)
+
+                if self.train_weights is None:
+                    preds, labels, _ = result
+                    preds_all.append(preds)
+                    labels_all.append(labels)
+                else:
+                    preds, labels, weights, _ = result
+                    preds_all.append(preds)
+                    labels_all.append(labels)
+                    weights_all.append(weights)
+
         except tf.errors.OutOfRangeError:
             pass
 
+        labels_all = np.concatenate(labels_all)
+        preds_all = np.concatenate(preds_all)
+        if self.train_weights is not None:
+            weights_all = np.concatenate(weights_all)
+
         # evaluate the training predictions / labels
-        self.evaluate_preds(
-            labels=np.concatenate(labels_all),
-            preds=np.concatenate(preds_all),
-            split='train')
+        self.evaluate_preds(labels=labels_all, preds=preds_all, weights=weights_all,
+                            split='train')
 
         # force flush all summaries to disk
         summary = self.sess.run(self.epoch_summaries_op, feed_dict=feed_dict)
         self.summary_writer.add_summary(summary, self.epoch)
         self.summary_writer.flush()
 
-    def _eval_split(self, labels, preds, split, eval_summaries,
+    def _eval_split(self, labels, preds, split, eval_summaries, weights=None,
                     init_iter=None, feed_dict=None, max_nbatches=None):
         '''
         Args
@@ -200,6 +221,7 @@ class BaseTrainer(object):
         - eval_summaries: dict, keys are str
             - other str => tf.placeholder for summaries
             - 'summary_op' => tf.Summary, merge of evaluation summaries
+        - weights: tf.Tensor, shape [batch_size], or None
         - init_iter: tf.Operation, dataset iterator initializer
             set to None if no iterator initialization is necessary
         - feed_dict: dict, used for populating placeholders needed
@@ -212,6 +234,8 @@ class BaseTrainer(object):
             self.sess.run(init_iter, feed_dict=feed_dict)
         start_time = time.time()
         tensors_dict_ops = {'preds': preds, 'labels': labels}
+        if weights is None:
+            tensors_dict_ops['weights'] = weights
         all_tensors = run_batches(
             sess=self.sess,
             tensors_dict_ops=tensors_dict_ops,
@@ -223,6 +247,7 @@ class BaseTrainer(object):
             labels=all_tensors['labels'],
             preds=all_tensors['preds'],
             split=split,
+            weights=all_tensors.get('weights', None),
             eval_summaries=eval_summaries)
 
     def eval_train(self, init_iter=None, feed_dict=None, max_nbatches=None):
@@ -235,6 +260,7 @@ class BaseTrainer(object):
             preds=self.train_eval_preds,
             split='train_eval',
             eval_summaries=self.train_eval_summaries,
+            weights=self.train_eval_weights,
             init_iter=init_iter,
             feed_dict=feed_dict,
             max_nbatches=max_nbatches)
@@ -298,7 +324,7 @@ class BaseTrainer(object):
     def create_eval_summaries(self, scope):
         raise NotImplementedError
 
-    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+    def evaluate_preds(self, labels, preds, split, weights=None, eval_summaries=None):
         raise NotImplementedError
 
     def eval_val(self, init_iter=None, feed_dict=None, max_nbatches=None):
@@ -343,6 +369,7 @@ class RegressionTrainer(BaseTrainer):
             preds=self.val_preds,
             split='val',
             eval_summaries=self.val_eval_summaries,
+            weights=self.val_weights,
             init_iter=init_iter,
             feed_dict=feed_dict,
             max_nbatches=max_nbatches)
@@ -354,7 +381,7 @@ class RegressionTrainer(BaseTrainer):
             saved_ckpt_path = self.save_ckpt()
             print('New best MSE on val! Saved checkpoint to', saved_ckpt_path)
 
-    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+    def evaluate_preds(self, labels, preds, split, weights=None, eval_summaries=None):
         '''Helper method to calculate r^2, R^2, mse, and rank.
 
         Args
@@ -362,6 +389,7 @@ class RegressionTrainer(BaseTrainer):
             - if shape [N, label_dim], only the 0-th column is used
         - preds: np.array, same shape as labels
         - split: str
+        - weights: np.array of shape [N], or None
         - eval_summaries: dict, keys are str
             'r2_placeholder' => tf.placeholder
             'R2_placeholder' => tf.placeholder
@@ -377,7 +405,7 @@ class RegressionTrainer(BaseTrainer):
             labels_eval = labels[:, 0]
             preds_eval = preds[:, 0]
 
-        r2, R2, mse, rank = evaluate(labels_eval, preds_eval, do_print=False)
+        r2, R2, mse, rank = evaluate(labels_eval, preds_eval, weights=weights, do_print=False)
 
         num_examples = len(labels_eval)
         s = 'Epoch {:02d}, {} ({} examples) r^2: {:0.3f}, R^2: {:0.3f}, mse: {:0.3f}, rank: {:0.3f}'
@@ -455,6 +483,7 @@ class ClassificationTrainer(BaseTrainer):
             preds=self.val_preds,
             split='val',
             eval_summaries=self.val_eval_summaries,
+            weights=self.val_weights,
             init_iter=init_iter,
             feed_dict=feed_dict,
             max_nbatches=max_nbatches)
@@ -466,13 +495,14 @@ class ClassificationTrainer(BaseTrainer):
             saved_ckpt_path = self.save_ckpt()
             print('New best acc on val! Saved checkpoint to', saved_ckpt_path)
 
-    def evaluate_preds(self, labels, preds, split, eval_summaries=None):
+    def evaluate_preds(self, labels, preds, split, weights=None, eval_summaries=None):
         '''Helper method to calculate loss_xent and accuracy.
 
         Args
         - labels: np.array, shape [N], type int32
         - preds: np.array, shape [N, C], type float32
         - split: str
+        - weights: np.array of shape [N], or None
         - eval_summaries: dict, keys are str
             'xent_placeholder' => tf.placeholder
             'acc_placeholder' => tf.placeholder
@@ -483,7 +513,7 @@ class ClassificationTrainer(BaseTrainer):
         assert len(labels) == len(preds)
         assert len(preds.shape) == 2
 
-        xent = sklearn.metrics.log_loss(y_true=labels, y_pred=preds)
+        xent = sklearn.metrics.log_loss(y_true=labels, y_pred=preds, sample_weight=weights)
         acc = np.mean(labels == np.argmax(preds, axis=1))
 
         num_examples = len(labels)

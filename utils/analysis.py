@@ -6,25 +6,38 @@ import scipy
 import sklearn.metrics
 
 
-def calc_score(labels, preds, metric):
+def calc_score(labels, preds, metric, weights=None):
     '''
+    See https://en.wikipedia.org/wiki/Pearson_correlation_coefficient#Weighted_correlation_coefficient
+    for the weighted correlation coefficient formula.
+
     Args
     - labels: np.array, shape [N]
     - preds: np.array, shape [N]
     - score: str, one of ['r2', 'R2', 'mse', 'rank']
-        - 'r2': squared Pearson correlation coefficient
-        - 'R2': coefficient of determination
-        - 'mse': mean squared-error
-        - 'rank': Spearman rank correlation coefficient
+        - 'r2': (weighted) squared Pearson correlation coefficient
+        - 'R2': (weighted) coefficient of determination
+        - 'mse': (weighted) mean squared-error
+        - 'rank': (unweighted) Spearman rank correlation coefficient
+    - weights: np.array, shape [N]
 
     Returns: float
     '''
     if metric == 'r2':
-        return scipy.stats.pearsonr(labels, preds)[0] ** 2
+        if weights is None:
+            return scipy.stats.pearsonr(labels, preds)[0] ** 2
+        else:
+            mx = np.average(preds, weights=weights)
+            my = np.average(labels, weights=weights)
+            cov_xy = np.average((preds - mx) * (labels - my), weights=weights)
+            cov_xx = np.average((preds - mx) ** 2, weights=weights)
+            cov_yy = np.average((labels - my) ** 2, weights=weights)
+            return cov_xy ** 2 / (cov_xx * cov_yy)
     elif metric == 'R2':
-        return sklearn.metrics.r2_score(y_true=labels, y_pred=preds)
+        return sklearn.metrics.r2_score(y_true=labels, y_pred=preds,
+                                        sample_weight=weights)
     elif metric == 'mse':
-        return np.mean((labels - preds) ** 2)
+        return np.average((labels - preds) ** 2, weights=weights)
     elif metric == 'rank':
         return scipy.stats.spearmanr(labels, preds)[0]
     else:
@@ -35,20 +48,21 @@ def calc_r2(x, y):
     return calc_score(labels=x, preds=y, metric='r2')
 
 
-def evaluate(labels, preds, do_print=False, title=None):
+def evaluate(labels, preds, weights=None, do_print=False, title=None):
     '''
     Args
     - labels: list of labels, length N
     - preds: list of preds, length N
+    - weights: list of weights, length N
     - do_print: bool
     - title: str
 
     Returns: r^2, R^2, mse, rank_corr
     '''
-    r2 = calc_score(labels=labels, preds=preds, metric='r2')
-    R2 = calc_score(labels=labels, preds=preds, metric='R2')
-    mse = calc_score(labels=labels, preds=preds, metric='mse')
-    rank = calc_score(labels=labels, preds=preds, metric='rank')
+    r2 = calc_score(labels=labels, preds=preds, metric='r2', weights=weights)
+    R2 = calc_score(labels=labels, preds=preds, metric='R2', weights=weights)
+    mse = calc_score(labels=labels, preds=preds, metric='mse', weights=weights)
+    rank = calc_score(labels=labels, preds=preds, metric='rank', weights=weights)
     if do_print:
         if title is not None:
             print(f'{title}\t- ', end='')
