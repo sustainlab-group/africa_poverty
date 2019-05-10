@@ -234,7 +234,7 @@ class BaseTrainer(object):
             self.sess.run(init_iter, feed_dict=feed_dict)
         start_time = time.time()
         tensors_dict_ops = {'preds': preds, 'labels': labels}
-        if weights is None:
+        if weights is not None:
             tensors_dict_ops['weights'] = weights
         all_tensors = run_batches(
             sess=self.sess,

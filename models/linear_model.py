@@ -1,3 +1,5 @@
+from utils.analysis import calc_score
+
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -32,22 +34,25 @@ def plot_alpha_vs_r2(alphas, train_R2s, train_r2s, val_R2s, val_r2s, title=None)
 
 
 def train_linear_model(train_X, train_y, val_X, val_y,
+                       train_weights=None, val_weights=None,
                        linear_model=sklearn.linear_model.Ridge,
                        plot_alphas=False, optimize='r2'):
     '''
     Args
-    - train_X: np.array, shape [train_num_examples, num_features]
-    - train_y: np.array, shape [train_num_examples]
-    - val_X: np.array, shape [val_num_examples, num_features]
-    - val_y: np.array, shape [val_num_examples]
+    - train_X: np.array, shape [num_train, features_dim]
+    - train_y: np.array, shape [num_train]
+    - val_X: np.array, shape [num_val, features_dim]
+    - val_y: np.array, shape [num_val]
+    - train_weights: np.array, shape [num_train]
+    - val_weights: np.array, shape [num_val]
     - linear_model: sklearn.linear_model
     - plot_alphas: bool, whether to plot alphas
     - optimize: str, one of ['r2', 'R2']
 
     Returns
     - best_model: sklearn.linear_model, learned model
-    - best_train_preds: np.array, shape [train_num_examples], output of best_model on train_X
-    - best_val_preds: np.array, shape [val_num_examples], output of best_model on val_X
+    - best_train_preds: np.array, shape [num_train], output of best_model on train_X
+    - best_val_preds: np.array, shape [num_val], output of best_model on val_X
     '''
     assert optimize in ['r2', 'R2']
 
@@ -66,12 +71,16 @@ def train_linear_model(train_X, train_y, val_X, val_y,
 
         train_preds = model.predict(train_X)
         if plot_alphas:
-            train_R2s[i] = sklearn.metrics.r2_score(y_true=train_y, y_pred=train_preds)
-            train_r2s[i] = scipy.stats.pearsonr(train_y, train_preds)[0] ** 2
+            train_R2s[i] = calc_score(labels=train_y, preds=train_preds,
+                                      metric='R2', weights=train_weights)
+            train_r2s[i] = calc_score(labels=train_y, preds=train_preds,
+                                      metric='r2', weights=train_weights)
 
         val_preds = model.predict(val_X)
-        val_R2 = sklearn.metrics.r2_score(y_true=val_y, y_pred=val_preds)
-        val_r2 = scipy.stats.pearsonr(val_y, val_preds)[0] ** 2
+        val_R2 = calc_score(labels=val_y, preds=val_preds,
+                            metric='R2', weights=val_weights)
+        val_r2 = calc_score(labels=val_y, preds=val_preds,
+                            metric='r2', weights=val_weights)
 
         if (best_model is None) \
         or (optimize == 'r2' and val_r2 > np.max(val_r2s)) \
@@ -92,16 +101,17 @@ def train_linear_model(train_X, train_y, val_X, val_y,
 
 
 def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
-                      linear_model=sklearn.linear_model.Ridge,
+                      weights=None, linear_model=sklearn.linear_model.Ridge,
                       plot=True, group_names=None, return_weights=False):
     '''Leave-one-group-out cross-validated training of a linear model.
 
     Args
     - features: np.array, shape [N, D]
     - labels: np.array, shape [N]
-    - group_labels: np.array, shape [N], dtype np.int32
+    - group_labels: np.array, shape [N], type np.int32
     - cv_groups: list of int, labels of groups to use for LOGO-CV
     - test_groups: list of int, labels of groups to test on
+    - weights: np.array, shape [N]
     - linear_model: sklearn.linear_model
     - plot: bool, whether to plot MSE as a function of alpha
     - group_names: list of str, names of the groups, only used when plotting
@@ -118,6 +128,7 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
     X = features[cv_indices]
     y = labels[cv_indices]
     groups = group_labels[cv_indices]
+    w = None if weights is None else weights[cv_indices]
 
     alphas = 2**np.arange(-5, 35, 3.0)
     preds = np.zeros([len(alphas), len(cv_indices)], dtype=np.float64)
@@ -129,16 +140,18 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
         # set random_state for deterministic data shuffling
         model = linear_model(alpha=alpha, random_state=123)
 
-        for g, (train_indices, val_indices) in enumerate(logo.split(X, y, groups)):
+        for g, (train_indices, val_indices) in enumerate(logo.split(X, groups=groups)):
             train_X, val_X = X[train_indices], X[val_indices]
             train_y, val_y = y[train_indices], y[val_indices]
-            model.fit(X=train_X, y=train_y)
+            train_w = None if w is None else w[train_indices]
+            val_w = None if w is None else w[val_indices]
+            model.fit(X=train_X, y=train_y, sample_weight=train_w)
             val_preds = model.predict(val_X)
             preds[i, val_indices] = val_preds
-            group_mses[i, g] = np.mean((val_preds - val_y) ** 2)
+            group_mses[i, g] = np.average((val_preds - val_y) ** 2, weights=val_w)
             leftout_group_labels[g] = groups[val_indices[0]]
 
-    mses = np.mean((preds - y) ** 2, axis=1)  # shape [num_alphas]
+    mses = np.average((preds - y) ** 2, axis=1, weights=w)  # shape [num_alphas]
 
     if plot:
         h = max(3, len(group_names) * 0.2)
@@ -149,19 +162,20 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
                        c=[cm.tab20.colors[g % 20]])
         ax.plot(alphas, mses, 'g-', label='Overall val mse')
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), title='Left-out Group')
-        ax.set_xlabel('alpha')
-        ax.set_ylabel('mse')
+        ax.set(xlabel='alpha', ylabel='mse')
         ax.set_xscale('log')
         ax.grid(True)
         plt.show()
 
     best_alpha = alphas[np.argmin(mses)]
     best_model = linear_model(alpha=best_alpha)
-    best_model.fit(X=X, y=y)
-    test_preds = best_model.predict(features[test_indices])
+    best_model.fit(X=X, y=y, sample_weight=w)
+    test_X, test_y, = features[test_indices], labels[test_indices]
+    test_preds = best_model.predict(test_X)
 
     best_val_mse = np.min(mses)
-    test_mse = np.mean((test_preds - labels[test_indices]) ** 2)
+    test_w = None if weights is None else weights[test_indices]
+    test_mse = np.average((test_preds - test_y) ** 2, weights=test_w)
     print(f'best val mse: {best_val_mse:.3f}, best alpha: {best_alpha}, test mse: {test_mse:.3f}')
 
     if not return_weights:

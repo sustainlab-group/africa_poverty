@@ -70,7 +70,7 @@ def evaluate(labels, preds, weights=None, do_print=False, title=None):
     return r2, R2, mse, rank
 
 
-def evaluate_df(df):
+def evaluate_df(df, weighted=False):
     '''Runs `evaluate` on a pandas DataFrame.
 
     Example usage
@@ -78,10 +78,16 @@ def evaluate_df(df):
 
     Args
     - df: pd.DataFrame, columns include ['preds', 'labels']
+    - weighted: bool, whether to use weighted metrics
+        if True, df must include ['weights'] column
 
     Returns: pd.Series, index = ['r2', 'R2', 'mse', 'rank']
     '''
-    r2, R2, mse, rank = evaluate(df['preds'], df['labels'])
+    if weighted:
+        r2, R2, mse, rank = evaluate(labels=df['labels'], preds=df['preds'],
+                                     weights=df['weights'])
+    else:
+        r2, R2, mse, rank = evaluate(labels=df['labels'], preds=df['preds'])
     return pd.Series({'r2': r2, 'R2': R2, 'mse': mse, 'rank': rank})
 
 
