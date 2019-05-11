@@ -1,5 +1,5 @@
 from models.resnet_model import Hyperspectral_Resnet
-from batchers import delta_batcher
+from batchers import dataset_constants, delta_batcher
 from utils.run import get_full_experiment_name, make_log_and_ckpt_dirs
 import utils.trainer
 
@@ -8,7 +8,11 @@ import pickle
 from pprint import pprint
 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+
+
+ROOT_DIR = '/atlas/u/chrisyeh/africa_poverty/'
 
 
 def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_params, batch_size,
@@ -20,7 +24,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     - sess: tf.Session
     - ooc: bool, whether to use out-of-country split, must be False
     - batcher: str, batcher type, one of ['delta', 'deltaclass']
-    - dataset: str, e.g. 'LSMSDeltaIncountryA'
+    - dataset: str, one of ['LSMSDeltaIncountry{f}', 'LSMSDeltaClassIncountry{f}', 'LSMSIndexOfDeltaIncountry{f}']
     - keep_frac: float, only supports 1.0
     - model_name: str, must be 'resnet'
     - model_params: dict
@@ -58,28 +62,60 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
         raise NotImplementedError(f'Unsupported model_name: {model_name}')
     if ooc:
         raise NotImplementedError('OOC is currently not supported')
-    if 'LSMSDeltaIncountry' not in dataset and 'LSMSDeltaClassIncountry' not in dataset:
-        raise NotImplementedError(f'Unsupported dataset: {dataset}')
 
-    if batcher == 'delta':
+    if 'LSMSDeltaIncountry' in dataset or 'LSMSIndexOfDeltaIncountry' in dataset:
+        assert batcher == 'delta'
         Batcher = delta_batcher.DeltaBatcher
         Trainer = utils.trainer.RegressionTrainer
-    elif batcher == 'deltaclass':
+    elif 'LSMSDeltaClassIncountry' in dataset:
+        assert batcher == 'deltaclass'
         assert not orig_labels
         Batcher = delta_batcher.DeltaClassBatcher
         Trainer = utils.trainer.ClassificationTrainer
     else:
-        raise NotImplementedError(f'Unsupported batcher: {batcher}')
+        raise NotImplementedError(f'Unsupported dataset: {dataset}')
 
     model_class = Hyperspectral_Resnet
+
     # ====================
     #       BATCHERS
     # ====================
-    with open('/atlas/u/chrisyeh/africa_poverty/data/lsms_incountry_folds.pkl', 'rb') as f:
+    with open(os.path.join(ROOT_DIR, 'data/lsms_incountry_folds.pkl'), 'rb') as f:
         incountry_folds = pickle.load(f)
 
     fold = dataset[-1]  # last letter of dataset
-    paths_dict = delta_batcher.get_lsms_tfrecord_pairs(incountry_folds[fold])
+
+    train_extra_fields = None
+    val_extra_fields = None
+
+    if 'LSMSIndexOfDeltaIncountry' in dataset:
+        assert label_name is None
+        train_labels_ph = tf.placeholder(tf.float32, shape=[None])
+        train_weights_ph = tf.placeholder(tf.float32, shape=[None])
+        val_labels_ph = tf.placeholder(tf.float32, shape=[None])
+        val_weights_ph = tf.placeholder(tf.float32, shape=[None])
+        train_extra_fields = {'labels': train_labels_ph, 'weights': train_weights_ph}
+        val_extra_fields = {'labels': val_labels_ph, 'weights': val_weights_ph}
+
+        delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_indexofdelta_pairs.csv'))
+
+        # split => np.array
+        paths_dict, weights_dict, labels_dict = {}, {}, {}
+        tfrecord_paths = np.asarray(
+            delta_batcher.get_lsms_tfrecord_paths(dataset_constants.SURVEY_NAMES['LSMS']))
+
+        for split, indices in incountry_folds[fold].items():
+            mask = delta_pairs_df['index1'].isin(indices)
+            assert np.all(mask == delta_pairs_df['index2'].isin(indices))
+            paths_dict[split] = tfrecord_paths[delta_pairs_df.loc[mask, ['index1', 'index2']].values]
+            weights = delta_pairs_df.loc[mask, 'households'].values
+            weights_dict[split] = weights / np.sum(weights) * len(weights)
+            labels_dict[split] = delta_pairs_df.loc[mask, 'index_of_delta'].values
+
+    else:
+        delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_deltas_pairs.csv'))
+        paths_dict = delta_batcher.get_lsms_tfrecord_pairs(
+            incountry_folds[fold], delta_pairs_df=delta_pairs_df)
 
     num_train = len(paths_dict['train'])
     num_val = len(paths_dict['val'])
@@ -88,7 +124,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     train_steps_per_epoch = int(np.ceil(num_train / batch_size))
     val_steps_per_epoch = int(np.ceil(num_val / batch_size))
 
-    def get_batcher(tfrecord_pairs, shuffle, augment, epochs, cache, orig_labels):
+    def get_batcher(tfrecord_pairs, shuffle, augment, epochs, cache, orig_labels, extra_fields=None):
         kwargs = dict(
             tfrecord_pairs=tfrecord_pairs,
             dataset='LSMS',
@@ -104,10 +140,12 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
             cache=cache)
         if batcher == 'delta':
             kwargs['orig_labels'] = orig_labels
+        if extra_fields is not None:
+            kwargs['extra_fields'] = extra_fields
         return Batcher(**kwargs)
 
-    train_tfrecord_pairs_ph = tf.placeholder(paths_dict['train'].dtype, paths_dict['train'].shape)
-    val_tfrecord_pairs_ph = tf.placeholder(paths_dict['val'].dtype, paths_dict['val'].shape)
+    train_tfrecord_pairs_ph = tf.placeholder(tf.string, shape=[None, 2])
+    val_tfrecord_pairs_ph = tf.placeholder(tf.string, shape=[None, 2])
 
     with tf.name_scope('train_batcher'):
         train_batcher = get_batcher(
@@ -116,7 +154,8 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
             augment=augment,
             epochs=max_epochs,
             cache='train' in cache,
-            orig_labels=orig_labels)
+            orig_labels=orig_labels,
+            extra_fields=train_extra_fields)
         train_init_iter, train_batch = train_batcher.get_batch()
 
     with tf.name_scope('train_eval_batcher'):
@@ -126,7 +165,8 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
             augment='none',
             epochs=max_epochs + 1,  # may need extra epoch at the end of training
             cache='train_eval' in cache,
-            orig_labels=orig_labels)
+            orig_labels=orig_labels,
+            extra_fields=train_extra_fields)
         train_eval_init_iter, train_eval_batch = train_eval_batcher.get_batch()
 
     with tf.name_scope('val_batcher'):
@@ -136,7 +176,8 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
             augment='none',
             epochs=max_epochs + 1,  # may need extra epoch at the end of training
             cache='val' in cache,
-            orig_labels=orig_labels)
+            orig_labels=orig_labels,
+            extra_fields=val_extra_fields)
         val_init_iter, val_batch = val_batcher.get_batch()
 
     # ====================
@@ -169,10 +210,18 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
         hs_weight_init, exclude_final_layer, image_summaries=False)
 
     # initialize the training dataset iterator
-    sess.run([train_init_iter, train_eval_init_iter, val_init_iter], feed_dict={
+    feed_dict = {
         train_tfrecord_pairs_ph: paths_dict['train'],
         val_tfrecord_pairs_ph: paths_dict['val']
-    })
+    }
+    if 'LSMSIndexOfDeltaIncountry' in dataset:
+        feed_dict.update({
+            train_labels_ph: labels_dict['train'],
+            train_weights_ph: weights_dict['train'],
+            val_labels_ph: labels_dict['val'],
+            val_weights_ph: weights_dict['val'],
+        })
+    sess.run([train_init_iter, train_eval_init_iter, val_init_iter], feed_dict=feed_dict)
 
     for epoch in range(max_epochs):
         if epoch % eval_every == 0:
@@ -195,8 +244,8 @@ def run_training_wrapper(**params):
     pprint(params)
 
     # parameters that might be 'None'
-    none_params = ['ls_bands', 'nl_band', 'exclude_final_layer', 'hs_weight_init',
-                   'imagenet_weights_path', 'init_ckpt_dir']
+    none_params = ['label_name', 'ls_bands', 'nl_band', 'exclude_final_layer',
+                   'hs_weight_init', 'imagenet_weights_path', 'init_ckpt_dir']
     for p in none_params:
         if params[p] == 'None':
             params[p] = None
@@ -224,8 +273,8 @@ def run_training_wrapper(**params):
         pprint(f'Checkpoint prefix: {ckpt_prefix}', stream=f)
 
     # Create session
-    # - MUST set up os.environ['CUDA_VISIBLE_DEVICES'] before creating the tf.Session object
-    if params['gpu_usage'] == 0:  # restrict to CPU only
+    # - MUST set os.environ['CUDA_VISIBLE_DEVICES'] before creating tf.Session object
+    if params['gpu'] is None:  # restrict to CPU only
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(params['gpu'])
@@ -283,12 +332,11 @@ def main(_):
 
 if __name__ == '__main__':
     flags = tf.app.flags
-    root = '/atlas/u/chrisyeh/africa_poverty/'
 
     # paths
     flags.DEFINE_string('experiment_name', 'new_experiment', 'name of the experiment being run')
-    flags.DEFINE_string('ckpt_dir', os.path.join(root, 'ckpts/'), 'checkpoint directory')
-    flags.DEFINE_string('log_dir', os.path.join(root, 'logs/'), 'log directory')
+    flags.DEFINE_string('ckpt_dir', os.path.join(ROOT_DIR, 'ckpts/'), 'checkpoint directory')
+    flags.DEFINE_string('log_dir', os.path.join(ROOT_DIR, 'logs/'), 'log directory')
 
     # initialization
     flags.DEFINE_string('init_ckpt_dir', None, 'path to checkpoint prefix from which to initialize weights (default None)')
@@ -322,7 +370,6 @@ if __name__ == '__main__':
 
     # system
     flags.DEFINE_integer('gpu', 0, 'which GPU to use (default 0)')
-    flags.DEFINE_float('gpu_usage', 0.96, 'GPU memory usage as a percentage, 0 for CPU-only (default 0.96)')
     flags.DEFINE_integer('num_threads', 1, 'number of threads for batcher (default 1)')
     flags.DEFINE_list('cache', [], 'comma-separated list (no spaces) of datasets to cache in memory, choose from [None, "train", "train_eval", "val"]')
 

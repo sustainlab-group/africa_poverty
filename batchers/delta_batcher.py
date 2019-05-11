@@ -1,21 +1,16 @@
 from batchers.batcher import Batcher, get_lsms_tfrecord_paths
 from batchers.dataset_constants import SURVEY_NAMES
 
-import os
-
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 
 
-ROOT_DIR = '/atlas/u/chrisyeh/africa_poverty/'
-
-
-def get_lsms_tfrecord_pairs(indices_dict):
+def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df):
     '''
     Args
     - indices_dict: dict, str => np.array of indices, the np.arrays are mutually exclusive
         or None to get all pairs
+    - delta_pairs_df: pd.DataFrame, has columns ['index1', 'index2']
 
     Returns: np.array or dict
     - if indices_dict is None, returns:
@@ -26,13 +21,9 @@ def get_lsms_tfrecord_pairs(indices_dict):
             images of the same location such that year1 < year2
     '''
     tfrecord_paths = np.asarray(get_lsms_tfrecord_paths(SURVEY_NAMES['LSMS']))
-    delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_deltas_pairs.csv'))
 
     if indices_dict is None:
-        paths1 = tfrecord_paths[delta_pairs_df['index1'].values]
-        paths2 = tfrecord_paths[delta_pairs_df['index2'].values]
-        pairs = np.stack([paths1, paths2], axis=1)
-        return pairs
+        return tfrecord_paths[delta_pairs_df[['index1', 'index2']].values]
     else:
         paths_dict = {}
         for k, indices in indices_dict.items():
@@ -44,13 +35,15 @@ def get_lsms_tfrecord_pairs(indices_dict):
 
 class DeltaBatcher(Batcher):
     def __init__(self, tfrecord_pairs, dataset, batch_size, label_name,
-                 num_threads=1, epochs=1, ls_bands='rgb', nl_band=None, orig_labels=False,
-                 shuffle=True, augment='forward', negatives='zero', normalize=True, cache=False):
+                 num_threads=1, epochs=1, ls_bands='rgb', nl_band=None,
+                 orig_labels=False, extra_fields=None, shuffle=True,
+                 augment='forward', negatives='zero', normalize=True, cache=False):
         '''
         Args
         - tfrecord_pairs: tf.Tensor, type str, shape [N, 2], each row is [path1, path2]
             - pairs of paths to TFRecord files containing satellite images
         - orig_labels: bool, whether to include the original labels (for multi-task training)
+        - extra_fields: dict, field (str) => tf.placeholder
         - augment: str, one of ['none', 'bidir', 'forward']
             - False: no data augmentation
             - 'bidir': randomly flip order of images and labels, random brightness/contrast, random flips
@@ -59,10 +52,13 @@ class DeltaBatcher(Batcher):
         - does not allow label_name to be None
         - does not allow for nl_label
         '''
-        assert label_name is not None
         assert augment in ['none', 'bidir', 'forward']
 
+        if orig_labels:
+            assert label_name is not None
         self.orig_labels = orig_labels
+
+        self.extra_fields = extra_fields
 
         super(DeltaBatcher, self).__init__(
             tfrecord_files=tfrecord_pairs,
@@ -93,6 +89,7 @@ class DeltaBatcher(Batcher):
                 - shape [batch_size, 3] if self.orig_labels = True
             - 'years1': tf.Tensor, shape [batch_size], type int32
             - 'years2': tf.Tensor, shape [batch_size], type int32
+            - field: tf.Tensor, for any field in extra_fields
 
         IMPLEMENTATION NOTE: The order of tf.data.Dataset.batch() and .repeat() matters!
             Suppose the size of the dataset is not evenly divisible by self.batch_size.
@@ -108,11 +105,13 @@ class DeltaBatcher(Batcher):
                 compression_type='GZIP',
                 buffer_size=1024 * 1024 * 128,  # 128 MB buffer size
                 num_parallel_reads=int(self.num_threads / 2))
-
             ds = ds.map(self.process_tfrecords, num_parallel_calls=self.num_threads)
             if self.nl_band == 'split':
                 ds = ds.map(self.split_nl_band)
+            datasets.append(ds)
 
+        if self.extra_fields is not None:
+            ds = tf.data.Dataset.from_tensor_slices(self.extra_fields)
             datasets.append(ds)
 
         ds = tf.data.Dataset.zip(tuple(datasets))
@@ -138,7 +137,7 @@ class DeltaBatcher(Batcher):
         iter_init = iterator.initializer
         return iter_init, batch
 
-    def merge_examples(self, ex1, ex2):
+    def merge_examples(self, ex1, ex2, ex3=None):
         '''
         Args
         - ex1, ex2: each exN is a dict
@@ -146,30 +145,39 @@ class DeltaBatcher(Batcher):
                 - channel order is [B, G, R, SWIR1, SWIR2, TEMP1, NIR, DMSP, VIIRS]
             - 'labels': tf.Tensor, scalar, type float32
                 - default value of np.nan if self.label_name is not a key in the protobuf
+                - not present if self.label_name=None
             - 'locs': tf.Tensor, type float32, shape [2], order is [lat, lon]
             - 'years': tf.Tensor, scalar, type int32
                 - default value of -1 if 'year' is not a key in the protobuf
+        - ex3: dict, (optional) only present if self.extra_fields is not None
 
         Returns: merged, dict
         - 'images': tf.Tensor, shape [224, 224, C], type float32
             - channel order is [B, G, R, SWIR1, SWIR2, TEMP1, NIR, DMSP, VIIRS]
         - 'labels': tf.Tensor, shape scalar or [3], type float32
             - shape [3] if self.orig_labels = True
+            - not present if self.label_name=None
         - 'locs': tf.Tensor, shape [2], type float32, order is [lat, lon]
         - 'years1': tf.Tensor, scalar, type int32
         - 'years2': tf.Tensor, scalar, type int32
         '''
         assert_op = tf.assert_equal(ex1['locs'], ex2['locs'])
         with tf.control_dependencies([assert_op]):
-            merged = {
-                'images': tf.concat([ex1['images'], ex2['images']], axis=2),
-                'labels': ex2['labels'] - ex1['labels'],
-                'locs': ex1['locs'],
-                'years1': ex1['years'],
-                'years2': ex2['years'],
-            }
+            concat_imgs = tf.concat([ex1['images'], ex2['images']], axis=2)
+
+        merged = {
+            'images': concat_imgs,
+            'locs': ex1['locs'],
+            'years1': ex1['years'],
+            'years2': ex2['years'],
+        }
+        if self.label_name is not None:
+            merged['labels'] = ex2['labels'] - ex1['labels']
         if self.orig_labels:
             merged['labels'] = tf.stack([merged['labels'], ex1['labels'], ex2['labels']])
+        if self.extra_fields is not None:
+            assert ex3 is not None
+            merged.update(ex3)
         return merged
 
     def augment_example(self, ex):
