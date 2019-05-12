@@ -41,7 +41,7 @@ source ~/.bashrc
 
 project_dir="/atlas/u/chrisyeh/africa_poverty/"
 echo "Setting directory to: $project_dir"
-cd ${project_dir}
+cd $project_dir
 
 # list out some useful information
 echo "

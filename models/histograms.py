@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 
 
@@ -88,3 +89,42 @@ def split_nl_hist(image_hists, years):
     assert(np.any(image_hists_nl[dmsp_indices, -2:-1, :] > 0))
     assert(np.any(image_hists_nl[viirs_indices, -1:, :] > 0))
     return image_hists_nl
+
+
+def plot_band_hists(band_hists, band_order, band_colors, bin_centers, xlabel,
+                    ylabel, title, yscale='linear'):
+    '''
+    Args
+    - band_hists: np.array, shape [C, nbins]
+      - assumes DMSP and VIIRS each have their own band
+    - band_order: list of str
+    - band_colors: dict, band_name => matplotlib color
+    - bin_centers: np.array, shape [nbins]
+    - xlabel, ylabel, title: str
+    - yscale: str, one of ['linear', 'log']
+    '''
+    fig, ax = plt.subplots(1, 1, figsize=[10, 4])
+    nbands = band_hists.shape[0]
+    for b in range(nbands):
+        band_name = band_order[b]
+        ax.plot(bin_centers, band_hists[b], label=band_name, color=band_colors[band_name])
+    ax.set(xlabel=xlabel, ylabel=ylabel, title=title, yscale=yscale)
+    ax.grid(True)
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    fig.tight_layout()
+    plt.show()
+
+
+def plot_label_hist(labels, bin_edges, title):
+    '''
+    Args
+    - labels: np.array, shape [num_images]
+    - bin_edges: np.array, shape [num_label_bins + 1]
+    - title: str
+    '''
+    fig, ax = plt.subplots(1, 1, figsize=[10, 4])
+    ax.hist(labels, bins=bin_edges)
+    ax.set(xlabel='label', ylabel='count', title=title)
+    ax.grid(True)
+    fig.tight_layout()
+    plt.show()

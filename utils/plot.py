@@ -77,7 +77,7 @@ def symmetric_heatmap(mat, labels, title=None, format_spec='{:.1f}',
         figsize=figsize)
 
 
-def boxplot_df(df, y, by, figsize, ylabel, title, colors):
+def boxplot_df(df, y, by, figsize, ylabel, title=None, colors=None, ax=None):
     '''Creates a box-and-whisker plot from a DataFrame.
 
     Args
@@ -88,20 +88,21 @@ def boxplot_df(df, y, by, figsize, ylabel, title, colors):
     - ylabel: str
     - title: str
     - colors: list of matplotlib colors, one per group after grouping by `by`
+    - ax: matplotlib.axes.Axes
     '''
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
     bplot = df.boxplot(y, by=by, ax=ax, grid=False, patch_artist=True,
                        return_type='dict', widths=0.8)
-    for i, patch in enumerate(bplot[y]['boxes']):
-        patch.set_facecolor(colors[i])
+    if colors is not None:
+        for i, patch in enumerate(bplot[y]['boxes']):
+            patch.set_facecolor(colors[i])
     ax.grid(True, axis='y')
     plt.setp(ax.get_xticklabels(), rotation=60, ha='right',
              rotation_mode='anchor')
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    fig.suptitle('')
-    fig.tight_layout()
-    plt.show()
+    ax.get_figure().suptitle(None)
 
 
 def plot_image_by_band(img, band_order, nrows, title, rgb=None, colorbar=False):

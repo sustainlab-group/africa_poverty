@@ -1,4 +1,5 @@
 from collections import defaultdict
+from glob import glob
 import os
 import time
 
@@ -199,3 +200,108 @@ def run_epoch(sess, tensors_dict_ops, verbose=False):
     - all_tensors: dict, str => np.array, shape [N] or [N, D]
     '''
     return run_batches(sess=sess, tensors_dict_ops=tensors_dict_ops, verbose=verbose)
+
+
+def save_results(dir_path: str, np_dict: dict, filename='features.npz'):
+    '''Saves a compressed features.npz file in the given dir.
+
+    Args
+    - dir_path: str, path to directory to save .npz file
+    - np_dict: dict, maps str => np.array
+    - filename: str, name of file to save
+    '''
+    if not os.path.exists(dir_path):
+        print('Creating directory at:', dir_path)
+        os.makedirs(dir_path)
+    npz_path = os.path.join(dir_path, filename)
+    assert not os.path.exists(npz_path), f'Path {npz_path} already existed!'
+    for key, nparr in np_dict.items():
+        print(f'{key}: shape {nparr.shape}, dtype {nparr.dtype}')
+    print(f'Saving results to {npz_path}')
+    np.savez_compressed(npz_path, **np_dict)
+
+
+def check_existing(models: dict, logs_root_dir: str, ckpts_root_dir: str,
+                   save_filename: str):
+    '''
+    Args
+    - models: dict, models[model_name]['model_dir'] is name of model directory
+    - logs_root_dir: str, path to root directory for saving logs
+    - ckpts_root_dir: str, path to root directory for saving checkpoints
+    - save_filename: str, name of existing file to check for
+    '''
+    models_with_results = []
+    for model_name in models:
+        model_dir = models[model_name]['model_dir']
+
+        # check that checkpoint exists
+        ckpt_glob = os.path.join(ckpts_root_dir, model_dir, 'ckpt-*')
+        assert len(glob(ckpt_glob)) > 0, f'did not find checkpoint matching: {ckpt_glob}'
+
+        npz_path = os.path.join(logs_root_dir, model_dir, save_filename)
+        if os.path.exsts(npz_path):
+            models_with_results.append(model_dir)
+
+    if len(models_with_results) > 0:
+        print('The following model directories contain *.npz files that would be overwritten:')
+        print('\n'.join(models_with_results))
+        return False
+
+
+def run_extraction_on_models(model_infos, ModelClass, model_params, batcher,
+                             batches_per_epoch, logs_root_dir, ckpts_root_dir,
+                             save_filename, batch_keys=(), feed_dict=None):
+    '''
+    Args
+    - model_infos: list of dict
+        - 'model_dir': str, name of folder where model is saved
+        - 'bands': tuple
+    - ModelClass: class, an instance `model` of ModelClass has attributes
+        model.features_layer: tf.Tensor
+        model.outputs: tf.Tensor
+    - model_params: dict, parameters to pass to ModelClass constructor
+    - batcher: Batcher, whose batch_op includes 'images' key
+    - batches_per_epoch: int
+    - logs_root_dir: str, path to root directory for saving logs
+    - ckpts_root_dir: str, path to root directory for saving checkpoints
+    - save_filename: str, name of file to save
+    - batch_keys: list of str
+    - feed_dict: dict, tf.Tensor => python value, feed_dict for initializing batcher iterator
+    '''
+    # clear the graph
+    tf.reset_default_graph()
+
+    print('Building model...')
+    init_iter, batch_op = batcher.get_batch()
+    model = ModelClass(batch_op['images'], **model_params)
+    tensors_dict_ops = {
+        'features': model.features_layer,
+        'preds': tf.squeeze(model.outputs)
+    }
+    for key in batch_keys:
+        if key in batch_op:
+            tensors_dict_ops[key] = batch_op[key]
+
+    saver = tf.train.Saver(var_list=None)
+    var_init_ops = [tf.global_variables_initializer(), tf.local_variables_initializer()]
+
+    print('Creating session...')
+    config_proto = tf.ConfigProto()
+    config_proto.gpu_options.allow_growth = True
+    with tf.Session(config=config_proto) as sess:
+        sess.run(init_iter, feed_dict=feed_dict)
+
+        for model_info in model_infos:
+            model_dir = model_info['model_dir']
+            ckpt_dir = os.path.join(ckpts_root_dir, model_dir)
+            logs_dir = os.path.join(logs_root_dir, model_dir)
+
+            # clear the model weights, then load saved checkpoint
+            print('Loading saved ckpt...')
+            sess.run(var_init_ops)
+            load(sess, saver, ckpt_dir)
+
+            # run the saved model, then save to *.npz files
+            all_tensors = run_batches(
+                sess, tensors_dict_ops, max_nbatches=batches_per_epoch, verbose=True)
+            save_results(dir_path=logs_dir, np_dict=all_tensors, save_filename=save_filename)

@@ -1,11 +1,13 @@
 import numpy as np
 
 
-def load_npz(path, verbose=True):
+def load_npz(path, verbose=True, check=None):
     '''Loads .npz file into a dict.
 
     Args
     - path: str, path to .npz file
+    - verbose: bool, whether to print out type and shape info
+    - check: dict, key (str) => np.array, values to check
 
     Returns
     - result: dict
@@ -16,6 +18,10 @@ def load_npz(path, verbose=True):
             result[key] = value
             if verbose:
                 print('{k}: dtype={d}, shape={s}'.format(k=key, d=value.dtype, s=value.shape))
+    if check is not None:
+        for key in check:
+            assert key in result
+            assert np.allclose(check[key], result[key])
     return result
 
 
