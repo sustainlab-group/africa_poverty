@@ -115,14 +115,15 @@ def plot_band_hists(band_hists, band_order, band_colors, bin_centers, xlabel,
     plt.show()
 
 
-def plot_label_hist(labels, bin_edges, title):
+def plot_label_hist(labels, bin_edges, title, figsize=(10, 4)):
     '''
     Args
     - labels: np.array, shape [num_images]
     - bin_edges: np.array, shape [num_label_bins + 1]
     - title: str
+    - figsize: tuple of (width, height), in inches
     '''
-    fig, ax = plt.subplots(1, 1, figsize=[10, 4])
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
     ax.hist(labels, bins=bin_edges)
     ax.set(xlabel='label', ylabel='count', title=title)
     ax.grid(True)

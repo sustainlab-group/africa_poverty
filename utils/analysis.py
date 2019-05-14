@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import scipy
 import sklearn.metrics
 
@@ -70,44 +69,29 @@ def evaluate(labels, preds, weights=None, do_print=False, title=None):
     return r2, R2, mse, rank
 
 
-def evaluate_df(df, weighted=False):
-    '''Runs `evaluate` on a pandas DataFrame.
-
-    Example usage
-    >>> preds_df.groupby('bands').apply(evaluate_df)
-
-    Args
-    - df: pd.DataFrame, columns include ['preds', 'labels']
-    - weighted: bool, whether to use weighted metrics
-        if True, df must include ['weights'] column
-
-    Returns: pd.Series, index = ['r2', 'R2', 'mse', 'rank']
-    '''
-    if weighted:
-        r2, R2, mse, rank = evaluate(labels=df['labels'], preds=df['preds'],
-                                     weights=df['weights'])
-    else:
-        r2, R2, mse, rank = evaluate(labels=df['labels'], preds=df['preds'])
-    return pd.Series({'r2': r2, 'R2': R2, 'mse': mse, 'rank': rank})
-
-
-def plot_predictions(labels, preds, title=None):
+def evaluate_df(df, cols, labels_col='label', weights_col=None, index_name=None):
     '''
     Args
-    - labels: list of labels, length n
-    - preds: list of preds, length n
-    - title: str
+    - df: pd.DataFrame, columns include cols and labels_col
+    - cols: list of str, names of cols in df to evaluate
+    - labels_col: str, name of labels column
+    - weights_col: str, name of weights column, optional
+    - index_name: str, name of index for returned df
+
+    Returns
+    - results_df: pd.DataFrame, columns are ['r2', 'R2', 'mse', 'rank']
+        row index are `cols`
     '''
-    with sns.axes_style('whitegrid'):
-        g = sns.jointplot(x=labels, y=preds, kind='reg',
-                          joint_kws={'scatter_kws': {'s': 5}})
-    g.set_axis_labels('True Label', 'Predicted Label')
-    if title is not None:
-        g.fig.suptitle(title)
-    plt.grid(b=True)
-    xy_line = np.array([-2, 3])
-    plt.plot(xy_line, xy_line, color='black')
-    plt.show()
+    labels = df[labels_col]
+    weights = None if weights_col is None else df[weights_col]
+    records = []
+    for col in cols:
+        row = evaluate(labels=labels, preds=df[col], weights=weights)
+        records.append(row)
+    index = pd.Index(data=cols, name=index_name)
+    results_df = pd.DataFrame.from_records(
+        records, columns=['r2', 'R2', 'mse', 'rank'], index=index)
+    return results_df
 
 
 def plot_residuals(labels, preds, title=None):
@@ -165,7 +149,7 @@ def sorted_scores(labels, preds, metric, sort='increasing'):
     return scores, labels_sorted
 
 
-def plot_label_vs_score(scores_list, labels_list, legends, metric, sort):
+def plot_label_vs_score(scores_list, labels_list, legends, metric, sort, figsize=(5, 4)):
     '''
     Args
     - scores_list: list of length num_models, each element is np.array of shape [num_examples]
@@ -173,17 +157,17 @@ def plot_label_vs_score(scores_list, labels_list, legends, metric, sort):
     - legends: list of str, length num_models
     - metric: str, metric by which the scores were calculated
     - sort: str, one of ['increasing', 'decreasing', 'random']
+    - figsize: tuple (width, height), in inches
     '''
     num_models = len(scores_list)
     assert len(labels_list) == num_models
     assert len(legends) == num_models
 
-    f, ax = plt.subplots(1, 1, figsize=[8, 6], constrained_layout=True)
+    f, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
     for i in range(num_models):
         ax.scatter(x=labels_list[i], y=scores_list[i], s=2)
 
-    ax.set_xlabel('wealthpooled')
-    ax.set_ylabel(metric)
+    ax.set(xlabel='wealthpooled', ylabel=metric)
     ax.set_title(f'Model Performance vs. cumulative {sort} label')
     ax.set_ylim(-0.05, 1.05)
     ax.grid()
@@ -193,24 +177,24 @@ def plot_label_vs_score(scores_list, labels_list, legends, metric, sort):
     plt.show()
 
 
-def plot_percdata_vs_score(scores_list, legends, metric, sort):
+def plot_percdata_vs_score(scores_list, legends, metric, sort, figsize=(5, 4)):
     '''
     Args
     - scores_list: list of length num_models, each element is np.array of shape [num_examples]
     - legends: list of str, length num_models
     - metric: str, metric by which the scores were calculated
     - sort: str, one of ['increasing', 'decreasing', 'random']
+    - figsize: tuple (width, height), in inches
     '''
     num_models = len(scores_list)
     assert len(legends) == num_models
 
-    f, ax = plt.subplots(1, 1, figsize=[8, 6], constrained_layout=True)
+    f, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
     for i in range(num_models):
         num_examples = len(scores_list[i])
         percdata = np.arange(1, num_examples + 1, dtype=np.float32) / num_examples
         ax.scatter(x=percdata, y=scores_list[i], s=2)
-    ax.set_xlabel('% of data')
-    ax.set_ylabel(metric)
+    ax.set(xlabel='% of data', ylabel='metric')
     ax.set_title(f'Model Performance vs. % of data by {sort} label')
     ax.set_xlim(-0.05, 1.05)
     ax.set_ylim(-0.05, 1.05)
@@ -242,12 +226,13 @@ def chunk_vs_score(labels, preds, nchunks, metric):
     return scores
 
 
-def plot_chunk_vs_score(scores, legends, metric):
+def plot_chunk_vs_score(scores, legends, metric, figsize=(5, 4)):
     '''
     Args
     - scores: np.array, shape [num_models, nchunks]
     - legends: list of str, length num_models
     - metric: str, metric by which the scores were calculated
+    - figsize: tuple (width, height), in inches
     '''
     assert len(scores) == len(legends)
     num_models, nchunks = scores.shape
@@ -261,13 +246,11 @@ def plot_chunk_vs_score(scores, legends, metric):
         start = end
 
     df = pd.DataFrame(data=scores.T, columns=legends, index=xticklabels)
-    fig, ax = plt.subplots(1, 1, figsize=[8, 6], constrained_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
     df.plot(kind='bar', ax=ax, width=0.8)
 
     # rotate x-axis labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha='center', rotation_mode='anchor')
-    ax.set_xlabel('chunk of data')
-    ax.set_ylabel(metric)
-    ax.set_title('Model Performance vs. % chunk of data')
+    ax.set(xlabel='chunk of data', ylabel=metric, title='Model Performance vs. % chunk of data')
     ax.grid()
     plt.show()

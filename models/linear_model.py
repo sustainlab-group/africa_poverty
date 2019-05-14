@@ -1,9 +1,10 @@
 from utils.analysis import calc_score
 
+import os
+
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-import scipy.stats
 import sklearn.linear_model
 
 
@@ -107,6 +108,7 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
 
     Args
     - features: np.array, shape [N, D]
+        each feature dim should be normalized to 0 mean, unit variance
     - labels: np.array, shape [N]
     - group_labels: np.array, shape [N], type np.int32
     - cv_groups: list of int, labels of groups to use for LOGO-CV
@@ -184,3 +186,110 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
         coefs = best_model.coef_
         intercept = best_model.intercept_
         return test_preds, coefs, intercept
+
+
+def ridge_incountry(features, labels, group_labels, group_names, savedir, weights=None,
+                    save_weights=False, do_plot=False, subset_indices=None,
+                    subset_name=None, save_dict=None):
+    '''
+    For every fold F (the test fold):
+      1. uses leave-one-fold-out CV on all other folds
+         to tune ridge model alpha parameter
+      2. using best alpha, trains ridge model on all folds except F
+      3. runs trained ridge model on F
+
+    Saves predictions for each fold on test.
+        savedir/test_preds_{subset_name}.npz if subset_name is given
+        savedir/test_preds.npz otherwise
+    Saves ridge regression weights to savedir/ridge_weights.npz
+        if save_weight=True
+
+    Args
+    - features: either a dict or np.array
+        - if dict: group_name => np.array, shape [N, D]
+        - otherwise, just a single np.array, shape [N, d]
+        - each feature dim should be normalized to 0 mean, unit variance
+    - labels: np.array, shape [N]
+    - group_labels: np.array, shape [N], type int
+    - group_names: list of str, names corresponding to the group labels
+    - savedir: str, path to directory to save predictions
+    - weights: np.array, shape [N], optional
+    - save_weights: bool, whether to save the ridge regression weights
+    - do_plot: bool, whether to plot alpha vs. mse curve for 1st fold
+    - subset_indices: np.array, indices of examples to include for both
+        training and testing
+    - subset_name: str, name of the subset
+    - save_dict: dict, str => np.array, saved with test preds npz file
+    '''
+    N = len(labels)
+    if isinstance(features, np.ndarray):
+        features = {f: features for f in group_names}
+    for f in group_names:
+        assert len(features[f]) == N
+
+    if save_dict is None:
+        save_dict = {}
+    else:
+        save_dict = dict(save_dict)  # make a copy
+
+    if subset_indices is None:
+        assert subset_name is None
+        filename = 'test_preds.npz'
+    else:
+        assert subset_name is not None
+        features = {f: feats[subset_indices] for f, feats in features.items()}
+        labels = labels[subset_indices]
+        group_labels = group_labels[subset_indices]
+
+        filename = f'test_preds_{subset_name}.npz'
+        for key in save_dict:
+            save_dict[key] = save_dict[key][subset_indices]
+
+    test_preds = np.zeros_like(labels, dtype=np.float32)
+    ridge_weights = {}
+
+    for i, f in enumerate(group_names):
+        print('Group:', f)
+        test_indices = np.where(group_labels == i)[0]
+        result = train_linear_logo(
+            features=features[f],
+            labels=labels,
+            group_labels=group_labels,
+            cv_groups=[x for x in range(len(group_names)) if x != i],
+            test_groups=[i],
+            weights=weights,
+            plot=do_plot,
+            group_names=group_names,
+            return_weights=save_weights)
+        if save_weights:
+            test_preds[test_indices], coefs, intercept = result
+            ridge_weights[f + '_w'] = coefs
+            ridge_weights[f + '_b'] = np.asarray([intercept])
+        else:
+            test_preds[test_indices] = result
+
+        # only plot the curve for the first group
+        do_plot = False
+
+    # save preds on the test set
+    os.makedirs(savedir, exist_ok=True)
+
+    # build up save_dict
+    if 'labels' in save_dict:
+        assert np.array_equal(labels, save_dict['labels'])
+    save_dict['labels'] = labels
+    if weights is not None:
+        save_dict['weights'] = weights
+    save_dict['test_preds'] = test_preds
+
+    npz_path = os.path.join(savedir, filename)
+    assert not os.path.exists(npz_path)
+    print('saving test preds to:', npz_path)
+    np.savez_compressed(npz_path, **save_dict)
+
+    # save model weights
+    if save_weights:
+        weights_npz_path = os.path.join(savedir, 'ridge_weights.npz')
+        assert not os.path.exists(weights_npz_path)
+        print('saving ridge_weights to:', weights_npz_path)
+        np.savez_compressed(weights_npz_path, **ridge_weights)
