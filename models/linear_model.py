@@ -188,9 +188,9 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
         return test_preds, coefs, intercept
 
 
-def ridge_incountry(features, labels, group_labels, group_names, savedir, weights=None,
-                    save_weights=False, do_plot=False, subset_indices=None,
-                    subset_name=None, save_dict=None):
+def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
+             save_weights=False, do_plot=False, subset_indices=None,
+             subset_name=None, save_dict=None):
     '''
     For every fold F (the test fold):
       1. uses leave-one-fold-out CV on all other folds
