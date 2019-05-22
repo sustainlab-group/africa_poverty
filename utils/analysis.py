@@ -94,15 +94,17 @@ def evaluate_df(df, cols, labels_col='label', weights_col=None, index_name=None)
     return results_df
 
 
-def plot_residuals(labels, preds, title=None):
+def plot_residuals(labels, preds, title=None, ax=None):
     '''Plots residuals = preds - labels.
 
     Args
     - labels: np.array, shape [N]
     - preds: np.array, shape [N]
     - title: str, ie. 'train' or 'val'
+    - ax: matplotlib.axes.Axes
     '''
-    fig, ax = plt.subplots(1, 1, constrained_layout=True)
+    if ax is None:
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
 
     flat_line = np.array([-2, 3])
     ax.plot(flat_line, np.zeros_like(flat_line), color='black')
@@ -113,8 +115,7 @@ def plot_residuals(labels, preds, title=None):
     ax.grid()
     if title is not None:
         ax.set_title(title)
-    ax.set_xlabel('labels')
-    ax.set_ylabel('residuals')
+    ax.set(xlabel='label', ylabel='residual')
 
 
 def sorted_scores(labels, preds, metric, sort='increasing'):
