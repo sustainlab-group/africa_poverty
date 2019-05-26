@@ -45,7 +45,7 @@ class DeltaBatcher(Batcher):
         - orig_labels: bool, whether to include the original labels (for multi-task training)
         - extra_fields: dict, field (str) => tf.placeholder
         - augment: str, one of ['none', 'bidir', 'forward']
-            - False: no data augmentation
+            - 'none': no data augmentation
             - 'bidir': randomly flip order of images and labels, random brightness/contrast, random flips
             - 'forward': only random brightness/contrast and random flips
         - see Batcher class for other args
@@ -104,7 +104,7 @@ class DeltaBatcher(Batcher):
                 filenames=self.tfrecord_files[:, idx],
                 compression_type='GZIP',
                 buffer_size=1024 * 1024 * 128,  # 128 MB buffer size
-                num_parallel_reads=int(self.num_threads / 2))
+                num_parallel_reads=max(1, int(self.num_threads / 2)))
             ds = ds.map(self.process_tfrecords, num_parallel_calls=self.num_threads)
             if self.nl_band == 'split':
                 ds = ds.map(self.split_nl_band)
