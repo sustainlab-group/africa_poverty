@@ -5,32 +5,45 @@ import numpy as np
 import tensorflow as tf
 
 
-def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df):
+def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df, index_cols, other_cols=None):
     '''
     Args
     - indices_dict: dict, str => np.array of indices, the np.arrays are mutually exclusive
         or None to get all pairs
-    - delta_pairs_df: pd.DataFrame, has columns ['index1', 'index2']
+    - delta_pairs_df: pd.DataFrame
+    - index_cols: list of str, [name of index1 column, name of index2 column]
+    - other_cols: list of str, names of other columns to get
 
     Returns: np.array or dict
     - if indices_dict is None, returns:
         - pairs: np.array, shape [N, 2], type str
-    - otherwise, returns:
-        - paths_dict: maps str => np.array, shape [N, 2], type str
+    - otherwise, returns: (paths_dict, other_dict1, ...)
+        - paths_dict: maps str => np.array, shape [X, 2], type str
             each row is [path1, path2], corresponds to TFRecords containing
             images of the same location such that year1 < year2
+        - other_dicts: maps str => np.array, shape [X]
+            corresponds to columns from other_cols
     '''
+    assert len(index_cols) == 2
     tfrecord_paths = np.asarray(get_lsms_tfrecord_paths(SURVEY_NAMES['LSMS']))
 
     if indices_dict is None:
-        return tfrecord_paths[delta_pairs_df[['index1', 'index2']].values]
-    else:
-        paths_dict = {}
-        for k, indices in indices_dict.items():
-            mask = delta_pairs_df['index1'].isin(indices)
-            assert np.all(mask == delta_pairs_df['index2'].isin(indices))
-            paths_dict[k] = tfrecord_paths[delta_pairs_df.loc[mask, ['index1', 'index2']].values]
-        return paths_dict
+        return tfrecord_paths[delta_pairs_df[index_cols].values]
+
+    if other_cols is None:
+        other_cols = []
+
+    index1, index2 = index_cols
+    return_dicts = [{} for i in range(len(other_cols) + 1)]
+    paths_dict = return_dicts[0]
+
+    for k, indices in indices_dict.items():
+        mask = delta_pairs_df[index1].isin(indices)
+        assert np.all(mask == delta_pairs_df[index2].isin(indices))
+        paths_dict[k] = tfrecord_paths[delta_pairs_df.loc[mask, index_cols].values]
+        for i, col in enumerate(other_cols):
+            return_dicts[i + 1][k] = delta_pairs_df.loc[mask, col].values
+    return return_dicts
 
 
 class DeltaBatcher(Batcher):

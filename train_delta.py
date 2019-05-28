@@ -1,5 +1,5 @@
 from models.resnet_model import Hyperspectral_Resnet
-from batchers import dataset_constants, delta_batcher
+from batchers import delta_batcher
 from utils.run import get_full_experiment_name, make_log_and_ckpt_dirs
 import utils.trainer
 
@@ -16,9 +16,10 @@ ROOT_DIR = '/atlas/u/chrisyeh/africa_poverty/'
 
 
 def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_params, batch_size,
-                 ls_bands, nl_band, label_name, orig_labels, augment, learning_rate, lr_decay,
-                 max_epochs, print_every, eval_every, num_threads, cache, log_dir, save_ckpt_dir,
-                 init_ckpt_dir, imagenet_weights_path, hs_weight_init, exclude_final_layer):
+                 ls_bands, nl_band, label_name, orig_labels, weighted, augment, learning_rate,
+                 lr_decay, max_epochs, print_every, eval_every, num_threads, cache, log_dir,
+                 save_ckpt_dir, init_ckpt_dir, imagenet_weights_path, hs_weight_init,
+                 exclude_final_layer):
     '''
     Args
     - sess: tf.Session
@@ -33,6 +34,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     - nl_band: one of [None, 'merge', 'split']
     - label_name: str, name of the label in the TFRecord file
     - orig_labels: bool, whether to include original labels for multi-task training
+    - weighted: bool, whether to weight clusters by household count in loss function
     - augment: str
     - learning_rate: float
     - lr_decay: float
@@ -70,6 +72,7 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     elif 'LSMSDeltaClassIncountry' in dataset:
         assert batcher == 'deltaclass'
         assert not orig_labels
+        assert not weighted  # currently not supported
         Batcher = delta_batcher.DeltaClassBatcher
         Trainer = utils.trainer.ClassificationTrainer
     else:
@@ -82,40 +85,42 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
     # ====================
     with open(os.path.join(ROOT_DIR, 'data/lsms_incountry_folds.pkl'), 'rb') as f:
         incountry_folds = pickle.load(f)
-
     fold = dataset[-1]  # last letter of dataset
+    delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsmsdelta_pairs.csv'))
 
-    train_extra_fields = None
-    val_extra_fields = None
-
-    if 'LSMSIndexOfDeltaIncountry' in dataset:
+    if weighted:
+        # we replace the label in the TFRecords with the label from the CSV
         assert label_name is None
-        train_labels_ph = tf.placeholder(tf.float32, shape=[None])
-        train_weights_ph = tf.placeholder(tf.float32, shape=[None])
-        val_labels_ph = tf.placeholder(tf.float32, shape=[None])
-        val_weights_ph = tf.placeholder(tf.float32, shape=[None])
-        train_extra_fields = {'labels': train_labels_ph, 'weights': train_weights_ph}
-        val_extra_fields = {'labels': val_labels_ph, 'weights': val_weights_ph}
+        assert not orig_labels
 
-        delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_indexofdelta_pairs.csv'))
+        train_extra_fields = {'labels': tf.placeholder(tf.float32, shape=[None]),
+                              'weights': tf.placeholder(tf.float32, shape=[None])}
+        val_extra_fields = {'labels': tf.placeholder(tf.float32, shape=[None]),
+                            'weights': tf.placeholder(tf.float32, shape=[None])}
+
+        if 'IndexOfDelta' in dataset:
+            label_col = 'index_diff'
+        else:
+            label_col = 'index'
 
         # split => np.array
-        paths_dict, weights_dict, labels_dict = {}, {}, {}
-        tfrecord_paths = np.asarray(
-            delta_batcher.get_lsms_tfrecord_paths(dataset_constants.SURVEY_NAMES['LSMS']))
-
-        for split, indices in incountry_folds[fold].items():
-            mask = delta_pairs_df['index1'].isin(indices)
-            assert np.all(mask == delta_pairs_df['index2'].isin(indices))
-            paths_dict[split] = tfrecord_paths[delta_pairs_df.loc[mask, ['index1', 'index2']].values]
-            weights = delta_pairs_df.loc[mask, 'households'].values
-            weights_dict[split] = weights / np.sum(weights) * len(weights)
-            labels_dict[split] = delta_pairs_df.loc[mask, 'index_of_delta'].values
+        paths_dict, households_dict, labels_dict = delta_batcher.get_lsms_tfrecord_pairs(
+            indices_dict=incountry_folds[fold],
+            delta_pairs_df=delta_pairs_df,
+            index_cols=['tfrecords_index.x', 'tfrecords_index.y'],
+            other_cols=['x', label_col])
+        weights_dict = {
+            split: households / np.sum(households) * len(households)
+            for split, households in households_dict.items()
+        }
 
     else:
-        delta_pairs_df = pd.read_csv(os.path.join(ROOT_DIR, 'data/lsms_deltas_pairs.csv'))
+        # use the labels in the TFRecords
+        train_extra_fields, val_extra_fields = None, None
         paths_dict = delta_batcher.get_lsms_tfrecord_pairs(
-            incountry_folds[fold], delta_pairs_df=delta_pairs_df)
+            indices_dict=incountry_folds[fold],
+            delta_pairs_df=delta_pairs_df,
+            index_cols=['tfrecords_index.x', 'tfrecords_index.y'])
 
     num_train = len(paths_dict['train'])
     num_val = len(paths_dict['val'])
@@ -214,12 +219,12 @@ def run_training(sess, ooc, batcher, dataset, keep_frac, model_name, model_param
         train_tfrecord_pairs_ph: paths_dict['train'],
         val_tfrecord_pairs_ph: paths_dict['val']
     }
-    if 'LSMSIndexOfDeltaIncountry' in dataset:
+    if weighted:
         feed_dict.update({
-            train_labels_ph: labels_dict['train'],
-            train_weights_ph: weights_dict['train'],
-            val_labels_ph: labels_dict['val'],
-            val_weights_ph: weights_dict['val'],
+            train_extra_fields['labels']: labels_dict['train'],
+            train_extra_fields['weights']: weights_dict['train'],
+            val_extra_fields['labels']: labels_dict['val'],
+            val_extra_fields['weights']: weights_dict['val'],
         })
     sess.run([train_init_iter, train_eval_init_iter, val_init_iter], feed_dict=feed_dict)
 
@@ -305,6 +310,7 @@ def run_training_wrapper(**params):
         nl_band=params['nl_band'],
         label_name=params['label_name'],
         orig_labels=params['orig_labels'],
+        weighted=params['weighted'],
         augment=params['augment'],
         learning_rate=params['lr'],
         lr_decay=params['lr_decay'],
@@ -347,6 +353,7 @@ if __name__ == '__main__':
     # learning parameters
     flags.DEFINE_string('label_name', 'wealthpooled', 'name of label to use from the TFRecord files')
     flags.DEFINE_boolean('orig_labels', False, 'whether to include original labels for multi-task training')
+    flags.DEFINE_boolean('weighted', True, 'whether to weight clusters by household count in loss function')
     flags.DEFINE_integer('batch_size', 64, 'batch size')
     flags.DEFINE_string('augment', 'bidir', 'whether to use data augmentation, one of ["none", "bidir", "forward"]')
     flags.DEFINE_float('fc_reg', 1e-3, 'regularization penalty factor for fully connected layers')

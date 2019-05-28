@@ -81,7 +81,7 @@ def symmetric_heatmap(mat, labels, title=None, format_spec='{:.1f}',
         figsize=figsize)
 
 
-def boxplot_df(df, y, by, figsize, ylabel, title=None, colors=None, ax=None):
+def boxplot_df(df, y, by, figsize=None, ylabel=None, title=None, colors=None, ax=None):
     '''Creates a box-and-whisker plot from a DataFrame.
 
     Args

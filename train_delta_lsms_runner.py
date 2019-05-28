@@ -6,108 +6,111 @@ import time
 
 
 root = '/atlas/u/chrisyeh/africa_poverty/'
+FOLDS = ['A', 'B', 'C', 'D', 'E']
 
+# incountry delta regression
+NAME = 'LSMSDeltaIncountry'
 default_params = {
-    'ckpt_dir': os.path.join(root, 'ckpts/'),
-    'log_dir': os.path.join(root, 'logs/'),
-    'label_name': 'wealthpooled',
-    'batcher': 'deltaclass',
+    'ckpt_dir': os.path.join(root, f'ckpts/{NAME}/'),
+    'log_dir': os.path.join(root, f'logs/{NAME}/'),
+    'label_name': 'None',
+    'batcher': 'delta',
     'orig_labels': False,
-    'batch_size': 64,
-    'model_name': 'resnet',
-    'num_layers': 18,
-    'augment': True,
-    'lr_decay': 0.96,
-    'num_threads': 5,
-    'max_epochs': 200,
-    'eval_every': 1,
-    'print_every': 40,
-    'cache': ['train', 'train_eval', 'val'],
-    'gpu': 0,
-    'gpu_usage': 0.96
+    'augment': 'bidir',
+    'weighted': True
 }
 
-# for incountry delta regression
-# HPARAMS = [
-#     ('ms', 'None', 'LSMSDeltaIncountryA', 'random'),  # 'samescaled'
-#     ('ms', 'None', 'LSMSDeltaIncountryB', 'random'),  # 'samescaled'
-#     ('ms', 'None', 'LSMSDeltaIncountryC', 'random'),  # 'samescaled'
-#     ('ms', 'None', 'LSMSDeltaIncountryD', 'random'),  # 'samescaled'
-#     ('ms', 'None', 'LSMSDeltaIncountryE', 'random'),  # 'samescaled'
-#     ('ms', 'split', 'LSMSDeltaIncountryA', 'random'),  # 'samescaled'
-#     ('ms', 'split', 'LSMSDeltaIncountryB', 'random'),  # 'samescaled'
-#     ('ms', 'split', 'LSMSDeltaIncountryC', 'random'),  # 'samescaled'
-#     ('ms', 'split', 'LSMSDeltaIncountryD', 'random'),  # 'samescaled'
-#     ('ms', 'split', 'LSMSDeltaIncountryE', 'random'),  # 'samescaled'
-#     ('None', 'split', 'LSMSDeltaIncountryA', 'random'),
-#     ('None', 'split', 'LSMSDeltaIncountryB', 'random'),
-#     ('None', 'split', 'LSMSDeltaIncountryC', 'random'),
-#     ('None', 'split', 'LSMSDeltaIncountryD', 'random'),
-#     ('None', 'split', 'LSMSDeltaIncountryE', 'random'),
-#     ('rgb', 'None', 'LSMSDeltaIncountryA', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaIncountryB', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaIncountryC', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaIncountryD', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaIncountryE', 'same'),
-#     ('rgb', 'split', 'LSMSDeltaIncountryA', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaIncountryB', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaIncountryC', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaIncountryD', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaIncountryE', 'samescaled'),
-# ]
+# incountry delta regression w/ orig_labels
+# NAME = 'LSMSDeltaIncountry_origlabels'
+# default_params = {
+#     'ckpt_dir': os.path.join(root, f'ckpts/{NAME}/'),
+#     'log_dir': os.path.join(root, f'logs/{NAME}/'),
+#     'label_name': 'wealthpooled',
+#     'batcher': 'delta',
+#     'orig_labels': True,
+#     'augment': 'bidir',
+#     'weighted': False
+# }
 
-# for incountry delta classification
-HPARAMS = [
-    ('ms', 'None', 'LSMSDeltaClassIncountryA', 'random'),  # 'samescaled'
-    ('ms', 'None', 'LSMSDeltaClassIncountryB', 'random'),  # 'samescaled'
-    ('ms', 'None', 'LSMSDeltaClassIncountryC', 'random'),  # 'samescaled'
-    ('ms', 'None', 'LSMSDeltaClassIncountryD', 'random'),  # 'samescaled'
-    ('ms', 'None', 'LSMSDeltaClassIncountryE', 'random'),  # 'samescaled'
-    ('ms', 'split', 'LSMSDeltaClassIncountryA', 'random'),  # 'samescaled'
-    ('ms', 'split', 'LSMSDeltaClassIncountryB', 'random'),  # 'samescaled'
-    ('ms', 'split', 'LSMSDeltaClassIncountryC', 'random'),  # 'samescaled'
-    ('ms', 'split', 'LSMSDeltaClassIncountryD', 'random'),  # 'samescaled'
-    ('ms', 'split', 'LSMSDeltaClassIncountryE', 'random'),  # 'samescaled'
-#     ('None', 'split', 'LSMSDeltaClassIncountryA', 'random'),
-#     ('None', 'split', 'LSMSDeltaClassIncountryB', 'random'),
-#     ('None', 'split', 'LSMSDeltaClassIncountryC', 'random'),
-#     ('None', 'split', 'LSMSDeltaClassIncountryD', 'random'),
-#     ('None', 'split', 'LSMSDeltaClassIncountryE', 'random'),
-#     ('rgb', 'None', 'LSMSDeltaClassIncountryA', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaClassIncountryB', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaClassIncountryC', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaClassIncountryD', 'same'),
-#     ('rgb', 'None', 'LSMSDeltaClassIncountryE', 'same'),
-#     ('rgb', 'split', 'LSMSDeltaClassIncountryA', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaClassIncountryB', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaClassIncountryC', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaClassIncountryD', 'samescaled'),
-#     ('rgb', 'split', 'LSMSDeltaClassIncountryE', 'samescaled'),
-]
+# incountry delta regression w/ orig_labels and only forward direction
+# NAME = 'LSMSDeltaIncountry_origlabels'
+# default_params = {
+#     'ckpt_dir': os.path.join(root, f'ckpts/{NAME}/'),
+#     'log_dir': os.path.join(root, f'logs/{NAME}/'),
+#     'label_name': 'wealthpooled',
+#     'batcher': 'delta',
+#     'orig_labels': True,
+#     'augment': 'forward',
+#     'weighted': False
+# }
+
+# incountry index of delta regression
+# NAME = 'LSMSIndexOfDeltaIncountry'
+# default_params = {
+#     'ckpt_dir': os.path.join(root, f'ckpts/{NAME}/'),
+#     'log_dir': os.path.join(root, f'logs/{NAME}/'),
+#     'label_name': 'None',
+#     'batcher': 'delta',
+#     'orig_labels': False,
+#     'augment': 'bidir',
+#     'weighted': True
+# }
+
+# incountry delta classification
+# NAME = 'LSMSDeltaClassIncountry'
+# default_params = {
+#     'ckpt_dir': os.path.join(root, f'ckpts/{NAME}/'),
+#     'log_dir': os.path.join(root, f'logs/{NAME}/'),
+#     'label_name': 'wealthpooled',
+#     'batcher': 'deltaclass',
+#     'orig_labels': False,
+#     'augment': 'bidir',
+#     'weighted': False
+# }
+
+# (ls_bands, nl_band, dataset, hs_weight_init)
+HPARAMS = [('ms', 'None', f'{NAME}{f}', 'random') for f in FOLDS]  # ms
+HPARAMS += [('ms', 'split', f'{NAME}{f}', 'random') for f in FOLDS]  # msnl
+HPARAMS += [('None', 'split', f'{NAME}{f}', 'random') for f in FOLDS]  # nl
+# HPARAMS += [('rgb', 'None', f'{NAME}{f}', 'random') for f in FOLDS]  # rgb
+# HPARAMS += [('rgb', 'split', f'{NAME}{f}', 'random') for f in FOLDS]  # rgbnl
+
+# order of params: (ls_bands, nl_band, dataset, hs_weight_init, reg, lr, keep_frac, seed)
+all_hparams = []
+for hparams_tup in HPARAMS:
+    for reg in [1e-1, 1e-2, 1e-3]:  # [1e-0, 1e-1, 1e-2, 1e-3]:
+        for lr in [1e-4]:  # [1e-2, 1e-3, 1e-4, 1e-5]:
+            for keep in [1.0]:  # [0.05, 0.10, 0.25, 0.5]:
+                for seed in [123]:  # [123, 456, 789]:
+                    new_tup = tuple(list(hparams_tup) + [reg, lr, keep, seed])
+                    all_hparams.append(new_tup)
+
+# sort hparams by ls_bands
+all_hparams = sorted(all_hparams, key=lambda x: x[0])
+
 
 PYTHON_COMMAND_TEMPLATE = 'python train_delta.py \
-    --label_name wealthpooled \
-    --orig_labels={orig_labels} \
-    --batcher {batcher} \
     --model_name resnet --num_layers 18 \
+    --max_epochs 150 --eval_every 1 --print_every 40 \
     --lr_decay 0.96 \
     --batch_size 64 \
-    --augment=True \
-    --max_epochs 200 --eval_every 1 --print_every 40 \
-    --ooc=False \
-    --keep_frac "{keep_frac}" \
-    --gpu 0 --gpu_usage 0.96 --num_threads 5 \
-    --ckpt_dir /atlas/u/chrisyeh/africa_poverty/ckpts/ \
-    --log_dir /atlas/u/chrisyeh/africa_poverty/logs/ \
+    --gpu 0 --num_threads 5 \
     --cache train,train_eval,val \
-    --seed "{seed}" \
+    --ooc=False \
     \
+    --label_name "{label_name}" \
+    --orig_labels="{orig_labels}" \
+    --weighted="{weighted}" \
+    --batcher "{batcher}" \
+    --augment "{augment}" \
+    --ckpt_dir "{ckpt_dir}" \
+    --log_dir "{log_dir}" \
+    --keep_frac "{keep_frac}" \
+    --seed "{seed}" \
     --experiment_name "{experiment_name}" \
     --dataset "{dataset}" \
-    --ls_bands "{ls_bands}" \
-    --nl_band "{nl_band}" \
-    --lr "{lr}" \
-    --fc_reg "{reg}" --conv_reg "{reg}" \
+    --ls_bands "{ls_bands}" --nl_band "{nl_band}" \
+    --lr "{lr}" --fc_reg "{reg}" --conv_reg "{reg}" \
     --imagenet_weights_path "{imagenet_weights_path}" \
     --hs_weight_init "{hs_weight_init}"'
 
@@ -121,8 +124,13 @@ def hparams_to_command(hparams_tup):
     - command: str, invocation of 'python train_delta.py ...'
     '''
     ls_bands, nl_band, dataset, hs_weight_init, reg, lr, keep_frac, seed = hparams_tup
-    experiment_name = '{dataset}_origlabels_18preact_{bands}_{init}'.format(
+    if default_params['orig_labels']:
+        origlabels = 'origlabels_'
+    else:
+        origlabels = ''
+    experiment_name = '{dataset}_bidir_{origlabels}18preact_{bands}_{init}'.format(
         dataset=dataset,
+        origlabels=origlabels,
         bands=get_bandname(ls_bands, nl_band),
         init=hs_weight_init)
 
@@ -131,8 +139,13 @@ def hparams_to_command(hparams_tup):
         imagenet_weights_path = '/atlas/group/model_weights/imagenet_resnet18_tensorpack.npz'
 
     command = PYTHON_COMMAND_TEMPLATE.format(
-        batcher=default_params['batcher'],
+        label_name=default_params['label_name'],
         orig_labels=default_params['orig_labels'],
+        weighted=default_params['weighted'],
+        batcher=default_params['batcher'],
+        augment=default_params['augment'],
+        ckpt_dir=default_params['ckpt_dir'],
+        log_dir=default_params['log_dir'],
         keep_frac=keep_frac,
         seed=seed,
         experiment_name=experiment_name,
@@ -145,7 +158,7 @@ def hparams_to_command(hparams_tup):
         hs_weight_init=hs_weight_init)
 
     full_experiment_name = get_full_experiment_name(
-        experiment_name, default_params['batch_size'], reg, reg, lr)
+        experiment_name, 64, reg, reg, lr)
     log_dir, _ = make_log_and_ckpt_dirs(
         default_params['log_dir'], default_params['ckpt_dir'], full_experiment_name)
 
@@ -155,9 +168,13 @@ def hparams_to_command(hparams_tup):
 
 
 # Empirical memory requirements:
-# - delta-origlabels
+# - LSMSDeltaIncountry (weighted)
+#   - MS: ??
+# - LSMSDeltaIncountry_origlabels
 #   - MS: 12 GB RAM, 5517 MiB GPU
-#   - MSNL: ?, ?
+# - LSMSIndexOfDeltaIncountry
+#   - MS: 11 GB RAM, 5517 MiB GPU
+#   - NL: 5 GB RAM, 4483 MiB GPU
 
 
 def get_mem(bands):
@@ -184,24 +201,11 @@ def get_mem_for_hparams(hparams):
     bandname = get_bandname(hparams[0], hparams[1])
     keep_frac = hparams[-2]
     min_mem = 10
-    buffer = 4
+    buffer = 3
     mem = int(get_mem(bandname) * keep_frac + buffer)
     mem = max(min_mem, mem)
     return mem
 
-
-# order of params: ls_bands, nl_band, dataset, hs_weight_init, reg, lr, keep_frac, seed
-all_hparams = []
-for hparams_tup in HPARAMS:
-    for reg in [1e-0, 1e-1, 1e-2, 1e-3]:
-        for lr in [1e-2, 1e-3, 1e-4, 1e-5]:
-            for keep in [1.0]:  # [0.05, 0.10, 0.25, 0.5]:
-                for seed in [123]:  # [123, 456, 789]:
-                    new_tup = tuple(list(hparams_tup) + [reg, lr, keep, seed])
-                    all_hparams.append(new_tup)
-
-# sort hparams by ls_bands
-all_hparams = sorted(all_hparams, key=lambda x: x[0])
 
 outputs_dir = os.path.join(root, 'outputs', str(int(time.time())))
 os.makedirs(outputs_dir, exist_ok=True)
