@@ -187,9 +187,9 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
         return test_preds, coefs, intercept
 
 
-def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
-             save_weights=False, do_plot=False, subset_indices=None,
-             subset_name=None, save_dict=None):
+def ridge_cv(features, labels, group_labels, group_names, savedir=None,
+             weights=None, save_weights=False, do_plot=False,
+             subset_indices=None, subset_name=None, save_dict=None):
     '''
     For every fold F (the test fold):
       1. uses leave-one-fold-out CV on all other folds
@@ -206,7 +206,7 @@ def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
     Args
     - features: either a dict or np.array
         - if dict: group_name => np.array, shape [N, D]
-        - otherwise, just a single np.array, shape [N, d]
+        - otherwise, just a single np.array, shape [N, D]
         - each feature dim should be normalized to 0 mean, unit variance
     - labels: np.array, shape [N]
     - group_labels: np.array, shape [N], type int
@@ -219,6 +219,9 @@ def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
         training and testing
     - subset_name: str, name of the subset
     - save_dict: dict, str => np.array, saved with test preds npz file
+
+    Returns
+    - test_preds: np.array, shape [N]
     '''
     N = len(labels)
     if isinstance(features, np.ndarray):
@@ -243,6 +246,15 @@ def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
         filename = f'test_preds_{subset_name}.npz'
         for key in save_dict:
             save_dict[key] = save_dict[key][subset_indices]
+
+    if savedir is None:
+        assert not save_weights
+    else:
+        npz_path = os.path.join(savedir, filename)
+        assert not os.path.exists(npz_path)
+        if save_weights:
+            weights_npz_path = os.path.join(savedir, 'ridge_weights.npz')
+            assert not os.path.exists(weights_npz_path)
 
     test_preds = np.zeros_like(labels, dtype=np.float32)
     ridge_weights = {}
@@ -271,24 +283,23 @@ def ridge_cv(features, labels, group_labels, group_names, savedir, weights=None,
         do_plot = False
 
     # save preds on the test set
-    os.makedirs(savedir, exist_ok=True)
+    if savedir is not None:
+        os.makedirs(savedir, exist_ok=True)
 
-    # build up save_dict
-    if 'labels' in save_dict:
-        assert np.array_equal(labels, save_dict['labels'])
-    save_dict['labels'] = labels
-    if weights is not None:
-        save_dict['weights'] = weights
-    save_dict['test_preds'] = test_preds
+        # build up save_dict
+        if 'labels' in save_dict:
+            assert np.array_equal(labels, save_dict['labels'])
+        save_dict['labels'] = labels
+        if weights is not None:
+            save_dict['weights'] = weights
+        save_dict['test_preds'] = test_preds
 
-    npz_path = os.path.join(savedir, filename)
-    assert not os.path.exists(npz_path)
-    print('saving test preds to:', npz_path)
-    np.savez_compressed(npz_path, **save_dict)
+        print('saving test preds to:', npz_path)
+        np.savez_compressed(npz_path, **save_dict)
 
-    # save model weights
-    if save_weights:
-        weights_npz_path = os.path.join(savedir, 'ridge_weights.npz')
-        assert not os.path.exists(weights_npz_path)
-        print('saving ridge_weights to:', weights_npz_path)
-        np.savez_compressed(weights_npz_path, **ridge_weights)
+        # save model weights
+        if save_weights:
+            print('saving ridge_weights to:', weights_npz_path)
+            np.savez_compressed(weights_npz_path, **ridge_weights)
+
+    return test_preds
