@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df, index_cols, other_cols=None):
+def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df, index_cols, other_cols=()):
     '''
     Args
     - indices_dict: dict, str => np.array of indices, the np.arrays are mutually exclusive
@@ -15,8 +15,9 @@ def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df, index_cols, other_cols
     - other_cols: list of str, names of other columns to get
 
     Returns: np.array or dict
-    - if indices_dict is None, returns:
-        - pairs: np.array, shape [N, 2], type str
+    - if indices_dict is None, returns: (paths, other1, ...)
+        - paths: np.array, shape [N, 2], type str
+        - others: np.array, shape [N], corresponds to columns from other_cols
     - otherwise, returns: (paths_dict, other_dict1, ...)
         - paths_dict: maps str => np.array, shape [X, 2], type str
             each row is [path1, path2], corresponds to TFRecords containing
@@ -28,10 +29,11 @@ def get_lsms_tfrecord_pairs(indices_dict, delta_pairs_df, index_cols, other_cols
     tfrecord_paths = np.asarray(get_lsms_tfrecord_paths(SURVEY_NAMES['LSMS']))
 
     if indices_dict is None:
-        return tfrecord_paths[delta_pairs_df[index_cols].values]
-
-    if other_cols is None:
-        other_cols = []
+        ret = [None] * (len(other_cols) + 1)
+        ret[0] = tfrecord_paths[delta_pairs_df[index_cols].values]
+        for i, col in enumerate(other_cols):
+            ret[i + 1] = delta_pairs_df[col].values
+        return ret
 
     index1, index2 = index_cols
     return_dicts = [{} for i in range(len(other_cols) + 1)]
