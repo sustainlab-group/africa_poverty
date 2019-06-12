@@ -6,6 +6,7 @@ import utils.trainer
 import os
 import pickle
 from pprint import pprint
+import time
 
 import numpy as np
 import pandas as pd
@@ -245,6 +246,9 @@ def run_training_wrapper(**params):
     '''
     params is a dict with keys matching the FLAGS defined below
     '''
+    start = time.time()
+    print('Current time:', start)
+
     # print all of the flags
     pprint(params)
 
@@ -326,6 +330,10 @@ def run_training_wrapper(**params):
         hs_weight_init=params['hs_weight_init'],
         exclude_final_layer=params['exclude_final_layer'])
     sess.close()
+
+    end = time.time()
+    print('End time:', end)
+    print('Time elasped (sec.):', end - start)
 
 
 def main(_):
