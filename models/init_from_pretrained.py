@@ -126,7 +126,7 @@ def init_first_layer_weights(var, rgb_weights, sess, hs_weight_init):
         rgb_mean = rgb_weights.mean(axis=2, keepdims=True)  # shape [F, F, 1, 64]
         hs_weights = np.tile(rgb_mean, (1, 1, num_hs_channels, 1))
         rgb_weights *= 3 / (3 + num_hs_channels)
-        hs_weights *= num_hs_channels / (3 + num_hs_channels)
+        hs_weights *= 3 / (3 + num_hs_channels)
     else:
         raise ValueError(f'Unknown hs_weight_init type: {hs_weight_init}')
 
