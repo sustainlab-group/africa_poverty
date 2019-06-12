@@ -1,6 +1,8 @@
 # CUSTOM EXCLUSIONS
 ckpts/
+ckpts_old/
 logs/
+logs_old/
 outputs/
 data/dhs_surveys*
 data/dhs_tfrecords*
