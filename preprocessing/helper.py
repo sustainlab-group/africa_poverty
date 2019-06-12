@@ -1,11 +1,12 @@
 import heapq
 import time
+from typing import Dict, List, Mapping, Tuple
 
 import numpy as np
 import tensorflow as tf
 
 
-def parse_record_str(record_str):
+def parse_record_str(record_str: str):
     '''Parses a record str and returns the feature map.
 
     Args
@@ -18,7 +19,7 @@ def parse_record_str(record_str):
     return feature_map
 
 
-def get_first_feature_map(tfrecord_path):
+def get_first_feature_map(tfrecord_path: str):
     '''Gets feature_map dict of 1st TFRecord in a TFRecord file.
 
     Args
@@ -226,7 +227,8 @@ def analyze_tfrecord_batch(iter_init, batch_op, total_num_images, nbands, k=20):
     return stats, k_worst
 
 
-def print_analysis_results(stats, band_order):
+def print_analysis_results(stats: Mapping[str, np.ndarray],
+                           band_order: List[str]) -> Tuple[Dict, Dict]:
     '''
     Args
     - stats: dict
@@ -238,6 +240,7 @@ def print_analysis_results(stats, band_order):
       - 'sums': np.array, shape [nbands], type float64, sum of values per band
       - 'sum_sqs': np.array, shape [nbands], type float64, sum of squared-values per band
       - 'nz_pixels': np.array, shape [nbands], type int64, number of non-zero pixels per band
+    - band_order: list of str, names of bands
 
     Returns
     - means: dict, band_name => np.float64, mean of each band excluding bad pixels

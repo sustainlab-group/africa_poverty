@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-def main(survey_path, out_dir):
+def main(survey_path: str, out_dir: str):
     '''
     Args
     - survey_path: str, path to complete survey CSV file

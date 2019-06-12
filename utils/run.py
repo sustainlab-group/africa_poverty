@@ -2,7 +2,7 @@ from collections import defaultdict
 from glob import glob
 import os
 import time
-from typing import Any, DefaultDict, Mapping
+from typing import Any, DefaultDict, Dict, Mapping
 
 import numpy as np
 import tensorflow as tf
@@ -150,7 +150,7 @@ def print_number_of_parameters(verbose: bool = True):
 
 
 def run_batches(sess: tf.Session, tensors_dict_ops: Mapping[str, tf.Tensor],
-                max_nbatches=None, verbose=False) -> Mapping[str, np.ndarray]:
+                max_nbatches=None, verbose=False) -> Dict[str, np.ndarray]:
     '''Runs the ops in tensors_dict_ops for a fixed number of batches or until
     reaching a tf.errors.OutOfRangeError, concatenating the runs.
 
@@ -191,7 +191,7 @@ def run_batches(sess: tf.Session, tensors_dict_ops: Mapping[str, tf.Tensor],
 
 
 def run_epoch(sess: tf.Session, tensors_dict_ops: Mapping[str, tf.Tensor],
-              verbose: bool = False) -> Mapping[str, np.ndarray]:
+              verbose: bool = False) -> Dict[str, np.ndarray]:
     '''
     Args
     - sess: tf.Session
