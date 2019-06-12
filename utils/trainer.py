@@ -3,6 +3,7 @@ from utils.analysis import evaluate
 from utils.run import load, run_batches
 
 import time
+from typing import Mapping, Tuple
 
 import numpy as np
 import pandas as pd
@@ -143,7 +144,7 @@ class BaseTrainer(object):
         self.results = pd.DataFrame(columns=['epoch', 'split'] + results_cols)
         self.results.set_index(['epoch', 'split'], inplace=True)
 
-    def train_epoch(self, print_every=1):
+    def train_epoch(self, print_every: int = 1):
         '''Run 1 epoch of training.
 
         Note: assumes train dataset iterator doesn't need initialization,
@@ -159,7 +160,7 @@ class BaseTrainer(object):
 
         if self.train_weights is None:
             weights_all = None
-            required_ops = (self.train_preds, self.train_labels, self.train_op)
+            required_ops = (self.train_preds, self.train_labels, self.train_op)  # type: Tuple[tf.Tensor, ...]
         else:
             weights_all = []
             required_ops = (self.train_preds, self.train_labels, self.train_weights, self.train_op)
@@ -313,7 +314,7 @@ class BaseTrainer(object):
             save_path=self.save_ckpt_prefix,
             global_step=self.epoch)
 
-    def log_results(self, csv_path):
+    def log_results(self, csv_path: str):
         '''
         Args
         - csv_path: str, path to save results log
@@ -420,7 +421,7 @@ class RegressionTrainer(BaseTrainer):
             self.summary_writer.add_summary(summary_str, self.epoch)
         return r2, R2, mse, rank
 
-    def create_eval_summaries(self, scope):
+    def create_eval_summaries(self, scope: str) -> Mapping:
         '''
         Args
         - scope: str
@@ -528,7 +529,7 @@ class ClassificationTrainer(BaseTrainer):
             self.summary_writer.add_summary(summary_str, self.epoch)
         return xent, acc
 
-    def create_eval_summaries(self, scope):
+    def create_eval_summaries(self, scope: str):
         '''
         Args
         - scope: str
@@ -550,7 +551,8 @@ class ClassificationTrainer(BaseTrainer):
         return metrics
 
 
-def add_image_summaries(images, labels, preds, locs, k=1):
+def add_image_summaries(images: tf.Tensor, labels: tf.Tensor, preds: tf.Tensor,
+                        locs: tf.Tensor, k: int = 1) -> tf.Tensor:
     '''Adds image summaries for the k best and k worst images in each batch.
     Each image is overlayed with (lat, lon), label, and prediction.
 

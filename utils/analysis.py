@@ -194,7 +194,7 @@ def plot_percdata_vs_score(scores_list, legends, metric, sort, figsize=(5, 4)):
     for i in range(num_models):
         num_examples = len(scores_list[i])
         percdata = np.arange(1, num_examples + 1, dtype=np.float32) / num_examples
-        ax.scatter(x=percdata, y=scores_list[i], s=2)
+        ax.scatter(x=percdata, y=scores_list[i], s=1)
     ax.set(xlabel='% of data', ylabel='metric')
     ax.set_title(f'Model Performance vs. % of data by {sort} label')
     ax.set_xlim(-0.05, 1.05)
@@ -206,18 +206,21 @@ def plot_percdata_vs_score(scores_list, legends, metric, sort, figsize=(5, 4)):
     plt.show()
 
 
-def chunk_vs_score(labels, preds, nchunks, metric):
+def chunk_vs_score(labels, preds, nchunks, metric, chunk_value=None):
     '''
     Args
     - labels: np.array, shape [N]
     - preds: np.array, shape [N]
     - nchunks: int
     - metric: str, one of ['r2', 'R2', 'mse', 'rank']
+    - chunk_value: np.array, shape [N]
 
     Returns
     - scores: np.array, shape [nchunks]
     '''
-    sorted_indices = np.argsort(labels)
+    if chunk_value is None:
+        chunk_value = labels
+    sorted_indices = np.argsort(chunk_value)
     chunk_indices = np.array_split(sorted_indices, nchunks)  # list of np.array
     scores = np.zeros(nchunks)
     for i in range(nchunks):
@@ -227,13 +230,16 @@ def chunk_vs_score(labels, preds, nchunks, metric):
     return scores
 
 
-def plot_chunk_vs_score(scores, legends, metric, figsize=(5, 4)):
+def plot_chunk_vs_score(scores, legends, metric, figsize=(5, 4), cmap=None,
+                        sort=None, xlabel='chunk of data'):
     '''
     Args
     - scores: np.array, shape [num_models, nchunks]
     - legends: list of str, length num_models
     - metric: str, metric by which the scores were calculated
     - figsize: tuple (width, height), in inches
+    - cmap: str, name of matplotlib colormap
+    - sort: str, one of ['increasing', 'decreasing', None], how to sort models by metric
     '''
     assert len(scores) == len(legends)
     num_models, nchunks = scores.shape
@@ -247,11 +253,20 @@ def plot_chunk_vs_score(scores, legends, metric, figsize=(5, 4)):
         start = end
 
     df = pd.DataFrame(data=scores.T, columns=legends, index=xticklabels)
+
+    col_order = df.mean(axis=0).argsort().values
+    if sort == 'increasing':
+        df = df.iloc[:, col_order]
+    elif sort == 'decreasing':
+        df = df.iloc[:, col_order[::-1]]
+
     fig, ax = plt.subplots(1, 1, figsize=figsize, constrained_layout=True)
-    df.plot(kind='bar', ax=ax, width=0.8)
+    df.plot(kind='bar', ax=ax, width=0.8, cmap=cmap)
+
+    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
     # rotate x-axis labels
     plt.setp(ax.get_xticklabels(), rotation=0, ha='center', rotation_mode='anchor')
-    ax.set(xlabel='chunk of data', ylabel=metric, title='Model Performance vs. % chunk of data')
+    ax.set(xlabel=xlabel, ylabel=metric, title='Model Performance vs. % chunk of data')
     ax.grid()
     plt.show()

@@ -2,12 +2,13 @@ from collections import defaultdict
 from glob import glob
 import os
 import time
+from typing import Any, DefaultDict, Mapping
 
 import numpy as np
 import tensorflow as tf
 
 
-def param_to_str(p):
+def param_to_str(p: float) -> str:
     '''
     if p < 1, only leaves everything after decimal
     - 0.001 -> '001'
@@ -25,7 +26,9 @@ def param_to_str(p):
         return str(p) + '.'
 
 
-def get_full_experiment_name(experiment_name, batch_size, fc_reg, conv_reg, learning_rate, tag=None):
+def get_full_experiment_name(experiment_name: str, batch_size: int,
+                             fc_reg: float, conv_reg: float,
+                             learning_rate: float, tag: str = None) -> str:
     '''Returns a str '{experiment_name}_b{batch_size}_fc{fc_str}_conv{conv_str}' where fc_str and
     conv_str are the numbers past the decimal for the fc/conv regularization parameters. Optionally
     appends a tag to the end.
@@ -52,7 +55,7 @@ def get_full_experiment_name(experiment_name, batch_size, fc_reg, conv_reg, lear
     return full_experiment_name
 
 
-def make_log_and_ckpt_dirs(log_dir_base, ckpt_dir_base, full_experiment_name):
+def make_log_and_ckpt_dirs(log_dir_base: str, ckpt_dir_base: str, full_experiment_name: str):
     '''Creates 2 new directories:
       1. log_dir: log_dir_base/full_experiment_name
       2. ckpt_dir: ckpt_dir_base/full_experiment_name
@@ -74,7 +77,7 @@ def make_log_and_ckpt_dirs(log_dir_base, ckpt_dir_base, full_experiment_name):
     return log_dir, ckpt_prefix
 
 
-def checkpoint_path_exists(ckpt_path):
+def checkpoint_path_exists(ckpt_path: str) -> bool:
     '''
     Args
     - ckpt_path: str, path to a checkpoint file
@@ -92,7 +95,7 @@ class LoadNoFileError(Exception):
     pass
 
 
-def load(sess, saver, checkpoint_dir):
+def load(sess: tf.Session, saver: tf.train.Saver, checkpoint_dir: str) -> bool:
     '''Loads the most recent checkpoint from checkpoint_dir.
 
     Args
@@ -121,7 +124,7 @@ def load(sess, saver, checkpoint_dir):
     return False
 
 
-def print_number_of_parameters(verbose=True):
+def print_number_of_parameters(verbose: bool = True):
     '''Prints the total number of trainable parameters.
 
     Args
@@ -146,7 +149,8 @@ def print_number_of_parameters(verbose=True):
     print('Total parameters:', total_parameters)
 
 
-def run_batches(sess, tensors_dict_ops, max_nbatches=None, verbose=False):
+def run_batches(sess: tf.Session, tensors_dict_ops: Mapping[str, tf.Tensor],
+                max_nbatches=None, verbose=False) -> Mapping[str, np.ndarray]:
     '''Runs the ops in tensors_dict_ops for a fixed number of batches or until
     reaching a tf.errors.OutOfRangeError, concatenating the runs.
 
@@ -163,7 +167,7 @@ def run_batches(sess, tensors_dict_ops, max_nbatches=None, verbose=False):
     Returns
     - all_tensors: dict, str => np.array, shape [N] or [N, D]
     '''
-    all_tensors = defaultdict(list)
+    all_tensors = defaultdict(list)  # type: DefaultDict[str, Any]
     curr_batch = 0
     start_time = time.time()
     try:
@@ -186,7 +190,8 @@ def run_batches(sess, tensors_dict_ops, max_nbatches=None, verbose=False):
     return all_tensors
 
 
-def run_epoch(sess, tensors_dict_ops, verbose=False):
+def run_epoch(sess: tf.Session, tensors_dict_ops: Mapping[str, tf.Tensor],
+              verbose: bool = False) -> Mapping[str, np.ndarray]:
     '''
     Args
     - sess: tf.Session
@@ -202,7 +207,7 @@ def run_epoch(sess, tensors_dict_ops, verbose=False):
     return run_batches(sess=sess, tensors_dict_ops=tensors_dict_ops, verbose=verbose)
 
 
-def save_results(dir_path: str, np_dict: dict, filename='features.npz'):
+def save_results(dir_path: str, np_dict: dict, filename: str = 'features.npz'):
     '''Saves a compressed features.npz file in the given dir.
 
     Args
@@ -222,13 +227,15 @@ def save_results(dir_path: str, np_dict: dict, filename='features.npz'):
 
 
 def check_existing(models: dict, logs_root_dir: str, ckpts_root_dir: str,
-                   save_filename: str):
+                   save_filename: str) -> bool:
     '''
     Args
     - models: dict, models[model_name]['model_dir'] is name of model directory
     - logs_root_dir: str, path to root directory for saving logs
     - ckpts_root_dir: str, path to root directory for saving checkpoints
     - save_filename: str, name of existing file to check for
+
+    Returns: bool, True if ckpts exist and no *.npz files found, otherwise False
     '''
     models_with_results = []
     for model_name in models:
@@ -239,13 +246,14 @@ def check_existing(models: dict, logs_root_dir: str, ckpts_root_dir: str,
         assert len(glob(ckpt_glob)) > 0, f'did not find checkpoint matching: {ckpt_glob}'
 
         npz_path = os.path.join(logs_root_dir, model_dir, save_filename)
-        if os.path.exsts(npz_path):
+        if os.path.exists(npz_path):
             models_with_results.append(model_dir)
 
     if len(models_with_results) > 0:
         print('The following model directories contain *.npz files that would be overwritten:')
         print('\n'.join(models_with_results))
         return False
+    return True
 
 
 def run_extraction_on_models(model_infos, ModelClass, model_params, batcher,
@@ -268,9 +276,6 @@ def run_extraction_on_models(model_infos, ModelClass, model_params, batcher,
     - batch_keys: list of str
     - feed_dict: dict, tf.Tensor => python value, feed_dict for initializing batcher iterator
     '''
-    # clear the graph
-    tf.reset_default_graph()
-
     print('Building model...')
     init_iter, batch_op = batcher.get_batch()
     model = ModelClass(batch_op['images'], **model_params)
@@ -304,4 +309,4 @@ def run_extraction_on_models(model_infos, ModelClass, model_params, batcher,
             # run the saved model, then save to *.npz files
             all_tensors = run_batches(
                 sess, tensors_dict_ops, max_nbatches=batches_per_epoch, verbose=True)
-            save_results(dir_path=logs_dir, np_dict=all_tensors, save_filename=save_filename)
+            save_results(dir_path=logs_dir, np_dict=all_tensors, filename=save_filename)
