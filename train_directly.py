@@ -121,7 +121,7 @@ def run_training(sess, ooc, batcher_type, dataset, keep_frac, model_name, model_
 
     # keep_frac affects sizes of both training and validation sets
     if keep_frac < 1.0:
-        if batcher != 'base':
+        if batcher_type != 'base':
             raise ValueError('keep_frac < 1.0 w/ non-base batcher is not supported')
 
         num_train = int(num_train * keep_frac)
@@ -198,15 +198,21 @@ def run_training(sess, ooc, batcher_type, dataset, keep_frac, model_name, model_
 
     with tf.variable_scope(tf.get_variable_scope()) as model_scope:
         train_model = model_class(train_batch['images'], is_training=True, **model_params)
-        train_preds = tf.squeeze(train_model.outputs, name='train_preds')
+        train_preds = train_model.outputs
+        if model_params['num_outputs'] == 1:
+            train_preds = tf.reshape(train_preds, shape=[-1], name='train_preds')
 
     with tf.variable_scope(model_scope, reuse=True):
         train_eval_model = model_class(train_eval_batch['images'], is_training=False, **model_params)
-        train_eval_preds = tf.squeeze(train_eval_model.outputs, name='train_eval_preds')
+        train_eval_preds = train_eval_model.outputs
+        if model_params['num_outputs'] == 1:
+            train_eval_preds = tf.reshape(train_eval_preds, shape=[-1], name='train_eval_preds')
 
     with tf.variable_scope(model_scope, reuse=True):
         val_model = model_class(val_batch['images'], is_training=False, **model_params)
-        val_preds = tf.squeeze(val_model.outputs, name='val_preds')
+        val_preds = val_model.outputs
+        if model_params['num_outputs'] == 1:
+            val_preds = tf.reshape(val_preds, shape=[-1], name='val_preds')
 
     trainer = RegressionTrainer(
         train_batch, train_eval_batch, val_batch,
