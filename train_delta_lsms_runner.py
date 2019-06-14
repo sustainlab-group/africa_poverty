@@ -177,7 +177,7 @@ def hparams_to_command(hparams_tup):
 #   - NL: 5 GB RAM, 4483 MiB GPU
 
 
-def get_mem(bands):
+def get_mem(bands: str) -> int:
     return {
         'rgb': 10,
         'rgbnl': 11,
@@ -187,7 +187,7 @@ def get_mem(bands):
     }[bands]
 
 
-def get_bandname(ls_bands, nl_band):
+def get_bandname(ls_bands: str, nl_band: str):
     return {
         ('ms', 'None'): 'ms',
         ('ms', 'split'): 'msnl',

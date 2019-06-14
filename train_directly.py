@@ -193,7 +193,7 @@ def run_training(sess, ooc, batcher_type, dataset, keep_frac, model_name, model_
     # ====================
     #        MODEL
     # ====================
-    print('Building model...')
+    print('Building model...', flush=True)
     model_params['num_outputs'] = 1
 
     with tf.variable_scope(tf.get_variable_scope()) as model_scope:
@@ -325,6 +325,7 @@ def run_training_wrapper(**params):
     end = time.time()
     print('End time:', end)
     print('Time elasped (sec.):', end - start)
+
 
 def main(_):
     params = {

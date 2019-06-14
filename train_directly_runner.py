@@ -83,17 +83,17 @@ HPARAMS = [
 #     ('rgb', 'split', 'incountryC', 'samescaled'),
 #     ('rgb', 'split', 'incountryD', 'samescaled'),
 #     ('rgb', 'split', 'incountryE', 'samescaled'),
-]
+# ]
 
 PYTHON_COMMAND_TEMPLATE = 'python train_directly.py \
     --label_name wealthpooled \
-    --batcher "{batcher}" \
+    --batcher base \
     --model_name resnet --num_layers 18 \
     --lr_decay 0.96 \
-    --batch_size 64 \
-    --augment=True \
-    --max_epochs 150 --eval_every 1 --print_every 40 \
-    --ooc=False \
+    --batch_size {batch_size} \
+    --augment True \
+    --max_epochs 200 --eval_every 1 --print_every 40 \
+    --ooc {ooc} \
     --keep_frac "{keep_frac}" \
     --gpu 0 --num_threads 5 \
     --ckpt_dir {ckpt_dir} \
@@ -113,19 +113,28 @@ PYTHON_COMMAND_TEMPLATE = 'python train_directly.py \
 
 def hparams_to_command(hparams_tup):
     ls_bands, nl_band, dataset, hs_weight_init, reg, lr, keep_frac, seed = hparams_tup
-    experiment_name = '{dataset}_18preact_{bands}_{init}'.format(
-        dataset=dataset,
-        bands=get_bandname(ls_bands, nl_band),
-        init=hs_weight_init)
+    if keep_frac < 1:
+        experiment_name = '{dataset}_18preact_{bands}_{init}_keep{keep_frac:g}_seed{seed}'.format(
+            dataset=dataset,
+            bands=get_bandname(ls_bands, nl_band),
+            init=hs_weight_init,
+            keep_frac=keep_frac,
+            seed=seed)
+    else:
+        experiment_name = '{dataset}_18preact_{bands}_{init}'.format(
+            dataset=dataset,
+            bands=get_bandname(ls_bands, nl_band),
+            init=hs_weight_init)
 
     imagenet_weights_path = 'None'
     if hs_weight_init in ['same', 'samescaled']:
         imagenet_weights_path = '/atlas/group/model_weights/imagenet_resnet18_tensorpack.npz'
 
     command = PYTHON_COMMAND_TEMPLATE.format(
+        batch_size=default_params['batch_size'],
         ckpt_dir=default_params['ckpt_dir'],
         log_dir=default_params['log_dir'],
-        batcher=default_params['batcher'],
+        ooc=default_params['ooc'],
         keep_frac=keep_frac,
         seed=seed,
         experiment_name=experiment_name,
@@ -148,22 +157,22 @@ def hparams_to_command(hparams_tup):
 
 
 # Empirical memory requirements:
-# - DHS incountryA
-#   - MS: 43 GB RAM, 5439MiB GPU
+# - DHS incountryD
+#   - MS: 44 GB RAM, 5439MiB GPU
 #   - NL: 13 GB RAM, 4415MiB GPU
 
 
-def get_mem(bands):
+def get_mem(bands: str) -> int:
     return {
         'rgb': 20,
         'rgbnl': 32,
-        'ms': 43,
+        'ms': 44,
         'msnl': 56,
         'nl': 15,
     }[bands]
 
 
-def get_bandname(ls_bands, nl_band):
+def get_bandname(ls_bands: str, nl_band: str) -> str:
     return {
         ('ms', 'None'): 'ms',
         ('ms', 'split'): 'msnl',
@@ -176,19 +185,32 @@ def get_bandname(ls_bands, nl_band):
 def get_mem_for_hparams(hparams):
     bandname = get_bandname(hparams[0], hparams[1])
     keep_frac = hparams[-2]
-    mem = int(get_mem(bandname) * keep_frac + 3)
+    min_mem = 10
+    buffer = 2
+    mem = int(get_mem(bandname) * keep_frac + buffer)
+    mem = max(min_mem, mem)
     return mem
 
 
+len_hparams = len(HPARAMS[0])
+assert all(np.array(list(map(len, HPARAMS))) == len_hparams)
+
 # order of params: ls_bands, nl_band, dataset, hs_weight_init, reg, lr, keep_frac, seed
 all_hparams = []
-for hparams_tup in HPARAMS:
-    for reg in [1e-0, 1e-1, 1e-2, 1e-3]:
-        for lr in [1e-2, 1e-3, 1e-4]:
-            for keep in [1.0]:  # [0.05, 0.10, 0.25, 0.5]:
-                for seed in [123]:  # [123, 456, 789]:
-                    new_tup = tuple(list(hparams_tup) + [reg, lr, keep, seed])
-                    all_hparams.append(new_tup)
+if len_hparams == 4:  # (ls_bands, nl_band, dataset, hs_weight_init)
+    keep = 1.0
+    seed = 123
+    for hparams_tup in HPARAMS:
+        for reg in [1e-0, 1e-1, 1e-2, 1e-3]:
+            for lr in [1e-2, 1e-3, 1e-4]:
+                new_tup = tuple(list(hparams_tup) + [reg, lr, keep, seed])
+                all_hparams.append(new_tup)
+elif len_hparams == 6:  # (ls_bands, nl_band, dataset, hs_weight_init, reg, lr)
+    for hparams_tup in HPARAMS:
+        for keep in [0.05, 0.10, 0.25, 0.5]:
+            for seed in [123, 456, 789]:
+                new_tup = tuple(list(hparams_tup) + [keep, seed])
+                all_hparams.append(new_tup)
 
 # sort hparams by ls_bands
 all_hparams = sorted(all_hparams, key=lambda x: x[0])
