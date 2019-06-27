@@ -102,7 +102,8 @@ def train_linear_model(train_X, train_y, val_X, val_y,
 
 def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
                       weights=None, linear_model=sklearn.linear_model.Ridge,
-                      plot=True, group_names=None, return_weights=False):
+                      plot=True, group_names=None, return_weights=False,
+                      verbose=False):
     '''Leave-one-group-out cross-validated training of a linear model.
 
     Args
@@ -117,6 +118,7 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
     - plot: bool, whether to plot MSE as a function of alpha
     - group_names: list of str, names of the groups, only used when plotting
     - return_weights: bool, whether to return the final trained model weights
+    - verbose: bool
 
     Returns
     - test_preds: np.array, predictions on indices from test_groups
@@ -138,6 +140,9 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
     logo = sklearn.model_selection.LeaveOneGroupOut()
 
     for i, alpha in enumerate(alphas):
+        if verbose:
+            print(f'\rAlpha: {alpha} ({i+1}/{len(alphas)})', end='')
+
         # set random_state for deterministic data shuffling
         model = linear_model(alpha=alpha, random_state=123)
 
@@ -152,6 +157,8 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
             group_mses[i, g] = np.average((val_preds - val_y) ** 2, weights=val_w)
             leftout_group_labels[g] = groups[val_indices[0]]
 
+    if verbose:
+        print()
     mses = np.average((preds - y) ** 2, axis=1, weights=w)  # shape [num_alphas]
 
     if plot:
@@ -189,7 +196,8 @@ def train_linear_logo(features, labels, group_labels, cv_groups, test_groups,
 
 def ridge_cv(features, labels, group_labels, group_names, savedir=None,
              weights=None, save_weights=False, do_plot=False,
-             subset_indices=None, subset_name=None, save_dict=None):
+             subset_indices=None, subset_name=None, save_dict=None,
+             verbose=False):
     '''
     For every fold F (the test fold):
       1. uses leave-one-fold-out CV on all other folds
@@ -219,6 +227,7 @@ def ridge_cv(features, labels, group_labels, group_names, savedir=None,
         training and testing
     - subset_name: str, name of the subset
     - save_dict: dict, str => np.array, saved with test preds npz file
+    - verbose: bool
 
     Returns
     - test_preds: np.array, shape [N]
@@ -271,7 +280,8 @@ def ridge_cv(features, labels, group_labels, group_names, savedir=None,
             weights=weights,
             plot=do_plot,
             group_names=group_names,
-            return_weights=save_weights)
+            return_weights=save_weights,
+            verbose=verbose)
         if save_weights:
             test_preds[test_indices], coefs, intercept = result
             ridge_weights[f + '_w'] = coefs
