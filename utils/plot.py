@@ -94,6 +94,7 @@ def boxplot_df(df, y, by, figsize=None, ylabel=None, title=None, colors=None, ax
     - colors: list of matplotlib colors, one per group after grouping by `by`
     - ax: matplotlib.axes.Axes
     '''
+    fig = None
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=figsize)
     bplot = df.boxplot(y, by=by, ax=ax, grid=False, patch_artist=True,
@@ -107,6 +108,8 @@ def boxplot_df(df, y, by, figsize=None, ylabel=None, title=None, colors=None, ax
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.get_figure().suptitle(None)
+    if fig is not None:
+        fig.tight_layout()
 
 
 def plot_image_by_band(img, band_order, nrows, title, rgb=None, colorbar=False):
