@@ -6,8 +6,9 @@ from models.resnet_model import Hyperspectral_Resnet
 from utils.run import check_existing, run_extraction_on_models
 
 from collections import defaultdict
-from pprint import pprint
+from glob import glob
 import os
+from pprint import pprint
 import re
 
 import numpy as np
@@ -28,15 +29,15 @@ IS_TRAINING = False
 
 DEFAULT_MODEL_TYPE = 'resnet'
 
-NAME = 'DHSIncountry'
-# NAME = 'DHSOOC'
+# NAME = 'DHSIncountry'
+NAME = 'DHS_OOC'
 
 CKPTS_ROOT_DIR = os.path.join(ROOT_DIR, f'ckpts/{NAME}/')
 LOGS_ROOT_DIR = os.path.join(ROOT_DIR, f'logs/{NAME}/')
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
-def get_bands(bands):
+def get_bands(bands: str):
     return {
         'ms': ('ms', None),
         'msnl': ('ms', 'split'),
@@ -94,42 +95,33 @@ for model_dir in IMAGENET_TRANSFER_MODELS:
         'bands': bands_tup
     }
 
-# Best ResNet-18 End-to-End models (Oct. 7, 2018)
-FULL_MODEL_DIRS = []
+# Best ResNet-18 OOC End-to-End models
+OOC_MODEL_DIRS = []
 [
-    'direct_2009-17A_18preact_ms_samescaled_lxv3_b64_fc1_conv1_lr0001',
-    'direct_2009-17B_18preact_ms_samescaled_lxv3_b64_fc1_conv1_lr0001',
-    'direct_2009-17C_18preact_ms_samescaled_lxv3_b64_fc1.0_conv1.0_lr0001',
-    'direct_2009-17D_18preact_ms_samescaled_lxv3_b64_fc1.0_conv1.0_lr01',
-    'direct_2009-17E_18preact_ms_samescaled_lxv3_b64_fc001_conv001_lr0001',
+    # 6/14/2019
+    '2009-17A_18preact_ms_samescaled_b64_fc01_conv01_lr0001',
+    '2009-17B_18preact_ms_samescaled_b64_fc001_conv001_lr0001',
+    '2009-17C_18preact_ms_samescaled_b64_fc001_conv001_lr001',
+    '2009-17D_18preact_ms_samescaled_b64_fc001_conv001_lr01',
+    '2009-17E_18preact_ms_samescaled_b64_fc01_conv01_lr001',
 
-    'direct_2009-17A_18preact_msnl_samescaled_lxv3_b64_fc1.0_conv1.0_lr01',
-    'direct_2009-17B_18preact_msnl_samescaled_lxv3_b64_fc001_conv001_lr01',
-    'direct_2009-17C_18preact_msnl_samescaled_lxv3_b64_fc1_conv1_lr0001',
-    'direct_2009-17D_18preact_msnl_samescaled_lxv3_b64_fc1.0_conv1.0_lr01',
-    'direct_2009-17E_18preact_msnl_samescaled_lxv3_b64_fc1_conv1_lr0001',
+    # 10/7/2018
+    '2009-17A_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
+    '2009-17B_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
+    '2009-17C_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
+    '2009-17D_18preact_nl_random_b64_fc1.0_conv1.0_lr01',
+    '2009-17E_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
 
-    'direct_2009-17A_18preact_nl_random_lxv3_b64_fc1.0_conv1.0_lr0001',
-    'direct_2009-17B_18preact_nl_random_lxv3_b64_fc1.0_conv1.0_lr0001',
-    'direct_2009-17C_18preact_nl_random_lxv3_b64_fc1.0_conv1.0_lr0001',
-    'direct_2009-17D_18preact_nl_random_lxv3_b64_fc1.0_conv1.0_lr01',
-    'direct_2009-17E_18preact_nl_random_lxv3_b64_fc1.0_conv1.0_lr0001',
-
-    'direct_2009-17A_18preact_rgb_same_lxv3_b64_fc001_conv001_lr01',
-    'direct_2009-17B_18preact_rgb_same_lxv3_b64_fc001_conv001_lr0001',
-    'direct_2009-17C_18preact_rgb_same_lxv3_b64_fc001_conv001_lr0001',
-    'direct_2009-17D_18preact_rgb_same_lxv3_b64_fc1.0_conv1.0_lr01',
-    'direct_2009-17E_18preact_rgb_same_lxv3_b64_fc001_conv001_lr0001',
-
-    'direct_2009-17A_18preact_rgbnl_samescaled_lxv3_b64_fc1_conv1_lr0001',
-    'direct_2009-17B_18preact_rgbnl_samescaled_lxv3_b64_fc1_conv1_lr0001',
-    'direct_2009-17C_18preact_rgbnl_samescaled_lxv3_b64_fc001_conv001_lr01',
-    'direct_2009-17D_18preact_rgbnl_samescaled_lxv3_b64_fc001_conv001_lr01',
-    'direct_2009-17E_18preact_rgbnl_samescaled_lxv3_b64_fc001_conv001_lr01',
+    # 10/7/2018
+    '2009-17A_18preact_rgb_same_b64_fc001_conv001_lr01',
+    '2009-17B_18preact_rgb_same_b64_fc001_conv001_lr0001',
+    '2009-17C_18preact_rgb_same_b64_fc001_conv001_lr0001',
+    '2009-17D_18preact_rgb_same_b64_fc1.0_conv1.0_lr01',
+    '2009-17E_18preact_rgb_same_b64_fc001_conv001_lr0001',
 ]
 
-for model_dir in FULL_MODEL_DIRS:
-    regex = r'direct_2009-17(\w)_18preact_(\w+)_\w+_lxv3_b64.+'
+for model_dir in OOC_MODEL_DIRS:
+    regex = r'2009-17(\w)_18preact_(\w+)_\w+_b64.+'
     fold, bands_name = re.match(regex, model_dir).groups()
     bands_tup = get_bands(bands_name)
     model_name = f'Resnet-18 {bands_name} {fold}'
@@ -138,14 +130,17 @@ for model_dir in FULL_MODEL_DIRS:
         'bands': bands_tup
     }
 
-# Incountry Models (May 2019)
-INCOUNTRY_MODEL_DIRS = [
-    'incountryA_18preact_ms_samescaled_b64_fc1.0_conv1.0_lr0001',
-    'incountryB_18preact_ms_samescaled_b64_fc001_conv001_lr01',
+# Incountry Models
+INCOUNTRY_MODEL_DIRS = []
+[
+    # 6/12/2019
+    'incountryA_18preact_ms_samescaled_b64_fc01_conv01_lr001',
+    'incountryB_18preact_ms_samescaled_b64_fc1_conv1_lr001',
     'incountryC_18preact_ms_samescaled_b64_fc1.0_conv1.0_lr0001',
-    'incountryD_18preact_ms_samescaled_b64_fc1.0_conv1.0_lr0001',
-    'incountryE_18preact_ms_samescaled_b64_fc1.0_conv1.0_lr0001',
+    'incountryD_18preact_ms_samescaled_b64_fc001_conv001_lr0001',
+    'incountryE_18preact_ms_samescaled_b64_fc001_conv001_lr0001',
 
+    # May 2019
     'incountryA_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
     'incountryB_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
     'incountryC_18preact_nl_random_b64_fc1.0_conv1.0_lr0001',
@@ -163,12 +158,11 @@ for model_dir in INCOUNTRY_MODEL_DIRS:
         'bands': bands_tup
     }
 
-KEEP_MODEL_DIRS = []  # sorted(glob(os.path.join(LOGS_ROOT_DIR, '*keep*seed*')))
+KEEP_MODEL_DIRS = sorted(glob(os.path.join(LOGS_ROOT_DIR, '2009-17*_18preact_nl_random_keep*seed*')))
 
 for model_dir in KEEP_MODEL_DIRS:
     model_dir = os.path.basename(model_dir)
-    if '_ms_' in model_dir: continue
-    regex = r'direct_2009-17(\w)_18preact_(\w+)_\w+_keep(.+)_seed(\w+)_b64.+'
+    regex = r'2009-17(\w)_18preact_(\w+)_\w+_keep(.+)_seed(\w+)_b64.+'
     fold, bands_name, keep, seed = re.match(regex, model_dir).groups()
     bands_tup = get_bands(bands_name)
     model_name = f'Resnet-18 {bands_name} {fold}, keep{keep} seed{seed}'
@@ -190,7 +184,7 @@ MODEL_PARAMS = {
 # ====================
 
 
-def get_model_class(model_type):
+def get_model_class(model_type: str):
     if model_type == 'resnet':
         model_class = Hyperspectral_Resnet
     elif model_type == 'vggf':
@@ -204,7 +198,7 @@ def get_model_class(model_type):
     return model_class
 
 
-def get_batcher(ls_bands, nl_band, num_epochs):
+def get_batcher(ls_bands: str, nl_band: str, num_epochs: int):
     '''
     Args
     - ls_bands: one of [None, 'ms', 'rgb']

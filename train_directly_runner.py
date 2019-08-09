@@ -4,75 +4,69 @@ import os
 import subprocess
 import time
 
+import numpy as np
+
 
 root = '/atlas/u/chrisyeh/africa_poverty/'
 
 default_params = {
-    'ckpt_dir': os.path.join(root, 'ckpts/DHSIncountry/'),
-    'log_dir': os.path.join(root, 'logs/DHSIncountry/'),
-    'label_name': 'wealthpooled',
-    'batcher': 'base',
+    # 'ckpt_dir': os.path.join(root, 'ckpts/DHSIncountry/'),
+    # 'log_dir': os.path.join(root, 'logs/DHSIncountry/'),
+    # 'ooc': False,
+    'ckpt_dir': os.path.join(root, 'ckpts/DHS_OOC/'),
+    'log_dir': os.path.join(root, 'logs/DHS_OOC/'),
+    'ooc': True,
     'batch_size': 64,
-    'model_name': 'resnet',
-    'num_layers': 18,
-    'augment': True,
-    'lr_decay': 0.96,
-    'num_threads': 5,
-    'max_epochs': 200,
-    'eval_every': 1,
-    'print_every': 40,
-    'cache': ['train', 'train_eval', 'val'],
-    'gpu': 0,
-    'gpu_usage': 0.96
 }
 
-# for OOC keep_frac training
-# HPARAMS = [
-#     ('ms', 'None', 'incountryA', 'samescaled', 1e-1, 1e-4),
-#     ('ms', 'None', 'incountryB', 'samescaled', 1e-1, 1e-4),
-#     ('ms', 'None', 'incountryC', 'samescaled', 1e-0, 1e-4),
-#     ('ms', 'None', 'incountryD', 'samescaled', 1e-3, 1e-4),
-#     ('ms', 'None', 'incountryE', 'samescaled', 1e-3, 1e-4),
-#     ('ms', 'split', 'incountryA', 'samescaled', 1e-1, 1e-2),
-#     ('ms', 'split', 'incountryB', 'samescaled', 1e-3, 1e-2),
-#     ('ms', 'split', 'incountryC', 'samescaled', 1e-1, 1e-4),
-#     ('ms', 'split', 'incountryD', 'samescaled', 1e-0, 1e-2),
-#     ('ms', 'split', 'incountryE', 'samescaled', 1e-1, 1e-4),
-#     ('None', 'split', 'incountryA', 'random', 1e-1, 1e-4),
-#     ('None', 'split', 'incountryB', 'random', 1e-1, 1e-4),
-#     ('None', 'split', 'incountryC', 'random', 1e-0, 1e-4),
-#     ('None', 'split', 'incountryD', 'random', 1e-0, 1e-2),
-#     ('None', 'split', 'incountryE', 'random', 1e-0, 1e-4),
-#     ('rgb', 'None', 'incountryA', 'same', 1e-3, 1e-2),
-#     ('rgb', 'None', 'incountryB', 'same', 1e-1, 1e-4),
-#     ('rgb', 'None', 'incountryC', 'same', 1e-3, 1e-4),
-#     ('rgb', 'None', 'incountryD', 'same', 1e-3, 1e-5),
-#     ('rgb', 'None', 'incountryE', 'same', 1e-3, 1e-4),
-#     ('rgb', 'split', 'incountryA', 'samescaled', 1e-1, 1e-4),
-#     ('rgb', 'split', 'incountryB', 'samescaled', 1e-1, 1e-2),
-#     ('rgb', 'split', 'incountryC', 'samescaled', 1e-3, 1e-2),
-#     ('rgb', 'split', 'incountryD', 'samescaled', 1e-3, 1e-2),
-#     ('rgb', 'split', 'incountryE', 'samescaled', 1e-3, 1e-2),
-# ]
+# for OOC training
+# (ls_bands, nl_band, dataset, hs_weight_init)  # optionally + (reg, lr), for keep_frac training
+HPARAMS = [
+    # ('ms', 'None', '2009-17A', 'samescaled', 1e-2, 1e-4),
+    # ('ms', 'None', '2009-17B', 'samescaled', 1e-3, 1e-4),
+    # ('ms', 'None', '2009-17C', 'samescaled', 1e-3, 1e-3),
+    # ('ms', 'None', '2009-17D', 'samescaled', 1e-3, 1e-2),
+    # ('ms', 'None', '2009-17E', 'samescaled', 1e-2, 1e-3),
+    # ('ms', 'split', '2009-17A', 'samescaled'),
+    # ('ms', 'split', '2009-17B', 'samescaled'),
+    # ('ms', 'split', '2009-17C', 'samescaled'),
+    # ('ms', 'split', '2009-17D', 'samescaled'),
+    # ('ms', 'split', '2009-17E', 'samescaled'),
+    ('None', 'split', '2009-17A', 'random', 1.0, 1e-4),
+    ('None', 'split', '2009-17B', 'random', 1.0, 1e-4),
+    ('None', 'split', '2009-17C', 'random', 1.0, 1e-4),
+    ('None', 'split', '2009-17D', 'random', 1.0, 1e-2),
+    ('None', 'split', '2009-17E', 'random', 1.0, 1e-4),
+    # ('rgb', 'None', '2009-17A', 'same'),
+    # ('rgb', 'None', '2009-17B', 'same'),
+    # ('rgb', 'None', '2009-17C', 'same'),
+    # ('rgb', 'None', '2009-17D', 'same'),
+    # ('rgb', 'None', '2009-17E', 'same'),
+    # ('rgb', 'split', '2009-17A', 'samescaled'),
+    # ('rgb', 'split', '2009-17B', 'samescaled'),
+    # ('rgb', 'split', '2009-17C', 'samescaled'),
+    # ('rgb', 'split', '2009-17D', 'samescaled'),
+    # ('rgb', 'split', '2009-17E', 'samescaled'),
+]
 
 # for incountry training
 # (ls_bands, nl_band, dataset, hs_weight_init)
-HPARAMS = [
-    ('ms', 'None', 'incountryA', 'samescaled'),
-    ('ms', 'None', 'incountryB', 'samescaled'),
-    ('ms', 'None', 'incountryC', 'samescaled'),
-    ('ms', 'None', 'incountryD', 'samescaled'),
-    ('ms', 'None', 'incountryE', 'samescaled'),
+# HPARAMS = [
+#     ('ms', 'None', 'incountryA', 'samescaled'),
+#     ('ms', 'None', 'incountryB', 'samescaled'),
+#     ('ms', 'None', 'incountryC', 'samescaled'),
+#     ('ms', 'None', 'incountryD', 'samescaled'),
+#     ('ms', 'None', 'incountryE', 'samescaled'),
 #     ('ms', 'split', 'incountryA', 'samescaled'),
 #     ('ms', 'split', 'incountryB', 'samescaled'),
 #     ('ms', 'split', 'incountryC', 'samescaled'),
 #     ('ms', 'split', 'incountryD', 'samescaled'),
 #     ('ms', 'split', 'incountryE', 'samescaled'),
-    ('None', 'split', 'incountryA', 'random'),
-    ('None', 'split', 'incountryB', 'random'),
-    ('None', 'split', 'incountryC', 'random'),
-    ('None', 'split', 'incountryD', 'random'),
-    ('None', 'split', 'incountryE', 'random'),
+#     ('None', 'split', 'incountryA', 'random'),
+#     ('None', 'split', 'incountryB', 'random'),
+#     ('None', 'split', 'incountryC', 'random'),
+#     ('None', 'split', 'incountryD', 'random'),
+#     ('None', 'split', 'incountryE', 'random'),
 #     ('rgb', 'None', 'incountryA', 'same'),
 #     ('rgb', 'None', 'incountryB', 'same'),
 #     ('rgb', 'None', 'incountryC', 'same'),
