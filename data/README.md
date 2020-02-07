@@ -24,14 +24,14 @@
 - 'nls_mean': np.array, shape [N], type float32, mean nightlight value
 ```
 
-**lsms_deltas_pairs.csv**
+**lsmsdelta_pairs.csv**
 
-- 1728 rows (+1 header), 5 columns
-- columns: `['country', 'year1', 'year2', 'index1', 'index2']`
+- 1539 rows (+1 header), 5 columns
+- columns: `['lat', 'lon', 'year.x', 'country', 'year.y', 'index', 'index_diff', 'geolev1', 'geolev2', 'x', 'tfrecords_index.x', 'tfrecords_index.y']`
 - each row refers to a pair of LSMS data points at the same location over 2 different years
 - each "index" refers to the index in each np.array in `image_hists_lsms.npz`
-- only includes the "forward" direction for each pair, i.e. year1 < year2
-- created in `data_analysis/lsms.ipynb`
+- only includes the "forward" direction for each pair, i.e. year.x < year.y
+- created in `data_analysis/lsms_merge_dfs.ipynb`
 
 ***lsms_incountry_folds.pkl***
 

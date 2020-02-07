@@ -1,3 +1,5 @@
+import heapq
+
 import numpy as np
 
 
@@ -36,3 +38,22 @@ def colordisplay(df, columns=None, cmap='coolwarm'):
     - cmap: str, name of matplotlib colormap
     '''
     display(df.style.background_gradient(cmap=cmap, subset=columns))
+
+
+def add_to_heap(h, k, value, data):
+    '''Tracks the max k elements using a heap.
+
+    We will actually use a min-heap for this task. That way, when a new element
+    comes in, we compare it to the smallest node in the heap, h[0]. If the new
+    value is greater than h[0], we pop h[0] and add the new element in.
+
+    Args
+    - h: list, either empty [] or already heapified
+    - k: int, desired capacity of the heap
+    - value: numeric, value to compare with
+    - data: data to store with the value
+    '''
+    if len(h) < k:
+        heapq.heappush(h, (value, data))
+    else:
+        heapq.heappushpop(h, (value, data))

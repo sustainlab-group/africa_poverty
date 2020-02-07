@@ -1,10 +1,12 @@
-import heapq
+import sys
 import time
 from typing import Dict, List, Mapping, Tuple
 
 import numpy as np
 import tensorflow as tf
 
+sys.path.append('../')
+from utils.general import add_to_heap
 
 def parse_record_str(record_str: str):
     '''Parses a record str and returns the feature map.
@@ -73,25 +75,6 @@ def print_scalar_values(feature_map):
         elif ft_type == 'bytes_list' and ft_shape == (1,):
             value = feature_map[name].bytes_list.value[0].decode()
             print(f'{name}: {value}')
-
-
-def add_to_heap(h, k, value, data):
-    '''Tracks the max k elements using a heap.
-
-    We will actually use a min-heap for this task. That way, when a new element
-    comes in, we compare it to the smallest node in the heap, h[0]. If the new
-    value is greater than h[0], we pop h[0] and add the new element in.
-
-    Args
-    - h: list, either empty [] or already heapified
-    - k: int, desired capacity of the heap
-    - value: numeric, value to compare with
-    - data: data to store with the value
-    '''
-    if len(h) < k:
-        heapq.heappush(h, (value, data))
-    else:
-        heapq.heappushpop(h, (value, data))
 
 
 def analyze_tfrecord_batch(iter_init, batch_op, total_num_images, nbands, k=20):
