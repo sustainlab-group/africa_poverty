@@ -48,3 +48,14 @@
 - each row corresponds to a village
 - `index` column gives the asset wealth index averaged over wealth values at the village level
 - created by Anne
+
+**all folders**
+
+- data necessary to reproduce figures
+- also 
+  - `dhs_jitter_results_knn_jitter.csv`
+  - `DHS_output_2019-12-18_aggregatedforidentification.RDS`
+  - `DHS_output_2019-12-18_countryvariance.RDS`
+  - these are processed DHS summary stats for plotting since we can't release the microdata
+  - `wc2.0_bio_10m_01.tif`
+  - `wdi.csv`
