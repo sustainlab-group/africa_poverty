@@ -90,10 +90,8 @@ quickbird = read.csv("../data/overpass/landinfo_dhs_sample_nocatalog.csv")
 quickbird$year = paste0("20", substr(as.character(quickbird$date),
                                      nchar(as.character(quickbird$date))-1, nchar(as.character(quickbird$date))))
 quickbird$cloud = substr(as.character(quickbird$cloud), 1, nchar(as.character(quickbird$cloud))-1)
-quickbird = quickbird[quickbird$cloud <= 30, ]
-quickbird =  dcast(quickbird, year ~ sensor)
-quickbird$dg = 365/(rowSums(quickbird[, 2:ncol(quickbird)])/500)
-quickbird = dplyr::select(quickbird, year, dg)
+quickbird = quickbird %>% filter(cloud <= 30) %>% 
+    group_by(year) %>% summarise(dg=365/(n()/500))
 
 overpass = merge(gee, planet, by="year")
 overpass = merge(overpass, quickbird, by="year")

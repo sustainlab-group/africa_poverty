@@ -43,4 +43,3 @@ ggsave("../raw_fig/Figure4_rug.pdf", rug, "pdf", width=5, height=4, dpi=300)
 ggsave("../raw_fig/Figure4_rug_agg.pdf", rug_agg, "pdf", width=5, height=4, dpi=300)
 ggsave("../raw_fig/Figure4_point.pdf", point, "pdf", width=5, height=5, dpi=300)
 ggsave("../raw_fig/Figure4_point_agg.pdf", point_agg, "pdf", width=5, height=5, dpi=300)
-

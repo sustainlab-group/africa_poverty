@@ -88,9 +88,9 @@ ggsave("../raw_fig/Figure2b_countryr2.pdf", m1, width=4, height=4, units="in", d
 ggsave("../raw_fig/Figure2d_aggregatedcountryr2.pdf", m2, 
        width=4, height=4, units="in", dpi=300)
 
-ggsave("../raw_fig/FigureS11a_countryrmse.pdf", m1_rmse, 
+ggsave("../raw_fig/FigureS4a_countryrmse.pdf", m1_rmse, 
        width=4, height=4, units="in", dpi=300)
-ggsave("../raw_fig/FigureS11b_aggregatedcountryrmse.pdf", m2_rmse, 
+ggsave("../raw_fig/FigureS4b_aggregatedcountryrmse.pdf", m2_rmse, 
        width=4, height=4, units="in", dpi=300)
 
 ggsave("../raw_fig/Figure2ef_correlationaggregated.pdf", x, width=8, height=4, units="in", dpi=400)
