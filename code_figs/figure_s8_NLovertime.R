@@ -32,5 +32,6 @@ lsms = merge(lsms, labels, by=c("lat", "lon"))
 lsms = dplyr::select(lsms, index, nls_mean, n)
 names(lsms) = c("Index", "Mean NL", "n")
 
-panel_set(list(lsms[, 1:2], deltas[, c(7, 5)], deltas[, c(6, 5)]), w=list(lsms$n, deltas$n, deltas$n), lm=rep(F, 3), unif_bounds=F, 
-          name="", font="sans", dot_size=F, save_path="../processed_fig/FigureS8.png")
+panel_set(list(lsms[, 1:2], deltas[, c(7, 5)], deltas[, c(6, 5)]), 
+          w=list(lsms$n, deltas$n, deltas$n), lm=rep(F, 3), unif_bounds=F, 
+          name="", font="sans", dot_size=F, save_path="../processed_fig/FigureS8.pdf")

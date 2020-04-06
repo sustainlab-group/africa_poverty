@@ -33,7 +33,7 @@ for (i in 1:100) {
     print(i)
 }
 
-png(filename='../processed_fig/FigureS9.png',width=1700,height=600,units="px", pointsize=22)
+pdf('../processed_fig/FigureS9.pdf',width=12,height=4)
 par(mfrow=c(1,3)) 
 hist(rc1,main="cross section year 1",xlim=c(0,1),las=1,xlab="r2")
 abline(v=mean(rc1),col="red",lty=2,lwd=2)

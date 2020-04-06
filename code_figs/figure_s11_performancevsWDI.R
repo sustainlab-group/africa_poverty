@@ -89,4 +89,4 @@ panel_set(list(preds[, c("GINI", "r2")], preds[, c("% Urban", "r2")],
                       "Total Population", "DHS within village wealth variance", 
                       "DHS between village wealth variance"),
           name="", unif_bounds=F, n=4,
-          save_path="../processed_fig/FigureS11.png", font="sans")
+          save_path="../processed_fig/FigureS11.pdf", font="sans")

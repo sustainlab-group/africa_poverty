@@ -24,6 +24,6 @@ t = t %>% dplyr::group_by(country, year, country_year, ea_id) %>%
     dplyr::summarize(consumption=mean(consumption), index=mean(index), n=n())
 t$`log(consumption)` = log(t$consumption)
 
-png(file="../processed_fig/FigureS3.png", width=6, height=6, res=300, units="in")
+pdf("../processed_fig/FigureS3.pdf", width=6, height=6)
 panel(t[, c("index", "log(consumption)")], font="sans", size=16, w=t$n)
 dev.off()

@@ -41,8 +41,8 @@ names(dhs) = c("cname", "year", "cluster", "Index",
 panel_set(list(dhs[, c("Index", "Index constructed by summing assets owned, no PCA")], 
                dhs[, c("Index", "Index constructed only using object ownership variables")], 
                dhs[, c("Index", "Index constructed within country-years")]), 
-          name="", unif_bounds=F, 
+          name="", unif_bounds=F, font="sans",
           subtitles=c("Raw count of assets owned",
                       "Only using objects - tv, radio, etc", 
                       "Index created within each country-year"), 
-          save_path="../processed_fig/FigureS2.png")
+          save_path="../processed_fig/FigureS2.pdf")

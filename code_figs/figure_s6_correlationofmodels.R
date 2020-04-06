@@ -20,4 +20,4 @@ g = ggplot(c, aes(Var2, Var1, fill = value)) +
                                              axis.ticks = element_blank(),
                                              axis.line=element_blank())
 
-ggsave("../processed_fig/FigureS6.png", g, width=6.9, height=6.3, units="in", dpi=300)
+ggsave("../processed_fig/FigureS6.pdf", g, width=6.9, height=6.3, units="in", dpi=300)
