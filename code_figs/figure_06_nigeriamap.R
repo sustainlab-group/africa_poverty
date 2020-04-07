@@ -4,8 +4,8 @@ xmin = 596700
 xmax = xmin+(7650*20)
 ymin = 474300
 ymax = ymin+(7650*13)
-w = ((xmax-xmin)/7650)*100
-h = ((ymax-ymin)/7650)*100
+w = ((xmax-xmin)/7650)
+h = ((ymax-ymin)/7650)
 bounding = data.frame(x = c(xmin, xmax, xmax, xmin, xmin), y = c(ymax, ymax, ymin, ymin, ymax))
 
 ################################################################
@@ -21,6 +21,7 @@ crs(bounding_points) = crs(r)
 pal = colorRampPalette(rev(brewer.pal(10,"RdYlBu")))
 preds = read.csv("../data/predictions/dhs_preds_incountry.csv")
 preds = preds[preds$country=="nigeria",]
+preds$wealthpooled = preds$labels
 preds[preds$wealthpooled>1.3, "wealthpooled"] = 1.3
 preds[preds$wealthpooled<-1, "wealthpooled"] = -1
 country = spTransform(country, projection(r))
@@ -38,17 +39,17 @@ names(preds) =c("lat", "lon", "wealthpooled")
 for (mode in c("nl", "ms", "msnl")) {
     r = raster(paste0("../data/predictions/nigeria_2012_2014_", mode, "_vals.tif"))
     r[r>1.3] = 1.3
-    png(filename=paste0("../raw_fig/Figure6_predictions", mode, ".png"), width=w, height=h)
+    pdf(paste0("../raw_fig/Figure6_predictions", mode, ".pdf"), width=w, height=h)
     gplot(r) + geom_tile(aes(fill=value)) + 
         scale_fill_gradientn(colors=pal(11), limits=c(-1, 1.3), na.value="transparent") + 
         theme_blank() + scale_x_continuous(limits = c(xmin, xmax), expand = c(0, 0)) + 
         scale_y_continuous(limits = c(ymin, ymax), expand = c(0, 0))  
     dev.off()
     if (mode=="msnl"){
-        png(filename=paste0("../raw_fig/Figure6_predictions", mode, "_outline.png"), width=1760, height=1430)
+        pdf(paste0("../raw_fig/Figure6_predictions", mode, "_outline.pdf"), width=176, height=143)
         gplot(r) + geom_tile(aes(fill=value)) + 
             scale_fill_gradientn(colors=pal(11), limits=c(-1, 1.3), na.value="transparent") + 
-            geom_path(aes(x=long, y=lat, group=group), data = country_df, color = "black", size = .8) +
+            geom_path(aes(x=long, y=lat, group=group), data = country_df, color = "black", size = 2) +
             theme_blank() + geom_path(aes(x, y), data = bounding, size=3)
         dev.off()
     }
@@ -57,7 +58,7 @@ for (mode in c("nl", "ms", "msnl")) {
 ################################################################
 #make the scatterplot of groundtruths from dhs
 ################################################################
-png(filename="../raw_fig/Figure6_nigeriagt.png", width=w, height=h)
+pdf("../raw_fig/Figure6_nigeriagt.pdf", width=w, height=h)
 ggplot() + 
     geom_path(aes(x=long, y=lat, group=group), data = country_df, color = "black", size = 1.5) +
     geom_point(aes(lon, lat, color=wealthpooled), data=preds, size=35, alpha=0.9) + 
@@ -71,7 +72,7 @@ dev.off()
 nl = raster(paste0("../data/predictions/nigeria_nl_5_8_4_6_polygon.tif"))
 nl = log(nl)
 nl[nl>2.5] = 2.5
-png(filename="../raw_fig/Figure6_nigerianl.png", width=w, height=h)
+pdf("../raw_fig/Figure6_nigerianl.pdf", width=w, height=h)
 gplot(nl) + geom_tile(aes(fill=value)) + theme_blank() +
     scale_fill_gradient(low = "black", high = "white", limits=c(-3, 2.5), na.value = "transparent") +
     scale_x_continuous(limits = c(xmin, xmax), expand = c(0, 0)) + scale_y_continuous(limits = c(ymin, ymax), expand = c(0, 0))
@@ -104,11 +105,11 @@ country = spTransform(country, projection(r))
 country_df = tidy(gSimplify(country, .005))
 
 #save fig
-png(filename="../raw_fig/Figure6_predictionsmsnlagg.png", width=1760, height=1430)
+pdf("../raw_fig/Figure6_predictionsmsnlagg.pdf", width=176, height=143)
 ggplot() + aes(x=long, y=lat, group=group) +
-    geom_path(color = "black", size = .5, data = shape_df) +
+    geom_path(color = "black", size = 1, data = shape_df) +
     geom_polygon(aes(fill=wealth_tile), data = shape_df) +
-    geom_path(color = "black", size = .5, data = country_df) +
+    geom_path(color = "black", size = 2, data = country_df) +
     scale_fill_gradientn(colors=rev(brewer.pal(10,"RdYlBu")), limits=c(0, 10)) + theme_blank()
 dev.off()
 
