@@ -5,7 +5,7 @@ source("00_dependencies.R")
 # Correlation of various asset ownership things (DHS DATA)
 ###################################################################   
 
-dhs = readRDS("../data/DHS_output_2019-12-18_aggregatedforidentification.RDS")
+dhs = readRDS("../data/DHS_output_2020-04-09_aggregatedforidentification.RDS")
 
 range01 = function(x){(x-min(x))/(max(x)-min(x))}
 index_vars = c("rooms", "electric", "phone", "radio", "tv", "car", "floor_qual", 
