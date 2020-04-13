@@ -21,9 +21,9 @@ q = c(0.52, quantile(country$r2, c(1/6, 2/6, 3/6, 4/6, 5/6)), 1)
 j = c(.53, .53+.07, .53+.07*2, .53+.07*3, .53+.07*4, .53+.07*5, 1)
 t = c(.5, .6, .7, .75, .8, .85, 1)
 t2 = c(.7, .6, .5, .4, .3, .2, .1)
-m1 = census.tools::map(africa, 'r2', '', '', mincol="#d73027", maxcol="#1a9850", 
+m1 = map(africa, 'r2', '', '', mincol="#d73027", maxcol="#1a9850", 
                        breaks=t, font="sans", size=10) 
-m1_rmse = census.tools::map(africa, 'rmse', '', '', mincol="#1a9850", maxcol="#d73027", 
+m1_rmse = map(africa, 'rmse', '', '', mincol="#1a9850", maxcol="#d73027", 
                             breaks=t2, font="sans", size=10) 
 p = plyr::rename(cluster_gadm, c("survey" = "survey-measured asset wealth", 
                                  "index" = "satellite-predicted asset wealth"))
@@ -48,9 +48,9 @@ country = g2 %>% dplyr::group_by(svyid, country) %>%
 country[country=="Côte d'Ivoire"] = "Cote d'Ivoire"
 country = merge(country, cross, by.x="country", by.y="country_simp")
 africa = merge(africa, country, by.x ="GID_0", by.y="iso3")
-m2 = census.tools::map(africa, 'r2', '', '', mincol="#d73027", maxcol="#1a9850", 
+m2 = map(africa, 'r2', '', '', mincol="#d73027", maxcol="#1a9850", 
                        breaks=t, font="sans", size=10)
-m2_rmse = census.tools::map(africa, 'rmse', '', '', mincol="#1a9850", maxcol="#d73027", 
+m2_rmse = map(africa, 'rmse', '', '', mincol="#1a9850", maxcol="#d73027", 
                             breaks=t2, font="sans", size=10) 
 p = plyr::rename(g2, c("dhs" = "survey-measured asset wealth", 
                        "predictions" = "satellite-predicted asset wealth"))

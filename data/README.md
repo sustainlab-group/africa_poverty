@@ -13,7 +13,6 @@
   - "year": year that the cluster was surveyed; the survey year corresponds to the start of the survey, but some clusters may be surveyed in later years
 
 **image_hists_lsms.npz**
-
 - created in `models/baselines_lsms.ipynb`
 ```
 - 'image_hists': np.array, shape [N, C, nbins], type int64
@@ -25,7 +24,6 @@
 ```
 
 **lsmsdelta_pairs.csv**
-
 - 1539 rows (+1 header), 5 columns
 - columns: `['lat', 'lon', 'year.x', 'country', 'year.y', 'index', 'index_diff', 'geolev1', 'geolev2', 'x', 'tfrecords_index.x', 'tfrecords_index.y']`
 - each row refers to a pair of LSMS data points at the same location over 2 different years
@@ -34,7 +32,6 @@
 - created in `data_analysis/lsms_merge_dfs.ipynb`
 
 ***lsms_incountry_folds.pkl***
-
 - contains a dictionary of dictionaries: `incountry_folds[fold][split] = np.array`
 - `fold`: one of `['A', 'B', 'C', 'D', 'E']`
 - `split`: one of `['train', 'val', 'test']`
@@ -42,16 +39,14 @@
 - created in `data_analysis/lsms.ipynb`
 
 **lsms_labels_agg.csv**
-
 - 3020 rows (+1 header), 5 columns
 - columns: `['lat', 'lon', 'year', 'country', 'index', 'ea_id']`
 - each row corresponds to a village
 - `index` column gives the asset wealth index averaged over wealth values at the village level
 - created by Anne
 
-**all folders**
-
-- data necessary to reproduce figures
+**folders**
+- contains all data necessary to reproduce figures
 - also 
   - `dhs_jitter_results_knn_jitter.csv`
   - `DHS_output_2019-12-18_aggregatedforidentification.RDS`
@@ -59,3 +54,51 @@
   - these are processed DHS summary stats for plotting since we can't release the microdata
   - `wc2.0_bio_10m_01.tif`
   - `wdi.csv`
+
+**crosswalks/crosswalk_countries.csv**
+- Crosswalk between ISO2, ISO3, World Bank country names, simplified country names (removing apostrophes, commaes etc), and an additional column of the names in the prediciton data. 
+
+**dhs/floor_recode**
+- crosswalk between the specific codes in DHS data (11, 21, etc) to a ranking of 1-5 of the quality of floor. The conversion between test and their DHS code can be found in DHS documentation. 
+- There are also recode files for toilet and water. 
+
+**download_locations/dhs_clusters.csv**
+- list of unique clusters, their locations, labels, and the number of clusters
+
+**output/overpass.csv**
+- file with an overpass rate for several satellites between 2000 and 2018 for 500 randomly selected sites in sub-saharan africa.
+
+**output/.**
+- lsms_labels_index.csv: the labels for the lsms locations.
+- lsms_labels_index_agg.csv: the cluster level labels for lsms locations at a time point. 
+- lsms_labels_index_of_diffs.csv: the labels for the difference in lsms locations over time. Differs from the lsms_labels_index.csv file because it only uses households that are consistent over time. 
+- geolevel2_ipums_dhs_indices_ipums.csv: the labels from DHS and IPUMS data, aggregated to the second geolevel, as designated by the IPUMS geo-files. 
+- geolevel2_dhs_indices_gadm2.csv: labels from DHS, aggregated to the second geolevel, as defined by GADM.
+- cluster_pred_dhs_indices_gadm2.csv: same as above but at cluster level. 
+
+**overpass/dhs_sample_GEE.csv**
+- for 500 randomly selected DHS cluster locations, the number of times each satellite captures the location per year. 
+- dhs_sample_Planet.csv: same structure, but for PlanetScope and RapidEye.
+
+**shapefiles/.**
+- shapefiles at geo2 for the countries in the study from GADM
+- a combined shapefile of all those countries.
+
+**surveys/.**
+- census_time.csv: A list of years of censuses for each country. Sourced from the UN list at https://unstats.un.org/unsd/demographic-social/census/censusdates/
+- dhs_time.csv: For each country-year, a number of sampled individuals in each year. Compiled from https://dhsprogram.com/data/available-datasets.cfm
+- population_time.csv: Country by year population, downloaded from the world bank.
+- povcal_time.csv: For each country-year, a number of sampled individuals in that year. Compiled from http://iresearch.worldbank.org/PovcalNet/povOnDemand.aspx, by finding the number of observations in each "detailed output" for each survey.
+- povcal_time_pop.csv: A version of the povcal_time.csv that is less accurate, instead assuming that on each year with a survey about 2% of the population is surveyed. 
+- us_surveys_time.csv: the number of ppl sampled in surveys as pulled from:
+  - ACS: https://www.census.gov/acs/www/methodology/sample-size-and-data-quality/sample-size/index.php
+  - AHS until 2015: https://www.census.gov/content/dam/Census/programs-surveys/ahs/publications/AHS%20Sample%20Determination%20and%20Decisions.pdf
+  - AHS in 2017: https://www.census.gov/programs-surveys/ahs/about/methodology.html
+  - CPS: https://www.census.gov/programs-surveys/cps/technical-documentation/methodology.html
+  - NSCG: https://www.nsf.gov/statistics/srvygrads/overview.htm
+  - PSID 1: https://psidonline.isr.umich.edu/publications/Papers/tsp/2000-04_Imm_Sample_Addition.pdf
+  - PSID 2: https://nsf.gov/news/special_reports/survey/index.jsp?id=income (interpolated between)
+  - SIPP 1993: https://www2.census.gov/prod2/sipp/wp/SIPP_WP_203.pdf
+  - SIPP: http://www.nber.org/sipp/2008/ch2_nov20.pdf
+
+

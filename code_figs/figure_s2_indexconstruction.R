@@ -8,11 +8,11 @@ source("00_dependencies.R")
 dhs = readRDS("../data/DHS_output_2020-04-09_aggregatedforidentification.RDS")
 
 range01 = function(x){(x-min(x))/(max(x)-min(x))}
-index_vars = c("rooms", "electric", "phone", "radio", "tv", "car", "floor_qual", 
-               "toilet_qual", "water_qual")
+index_vars = c("roomspp", "electric", "phone", "radio", "tv", "car", "fridge",
+               "motorcycle", "floor_qual", "toilet_qual", "water_qual")
 
 i = dhs
-i$rooms = range01(i$rooms)
+i$roomspp = range01(i$roomspp)
 i$floor_qual = range01(i$floor_qual)
 i$toilet_qual = range01(i$toilet_qual)
 i$water_qual = range01(i$water_qual)
@@ -28,8 +28,9 @@ for (c in unique(dhs$cname)) {
     }
 }
 
+flip = dhs$cname=="MW"&dhs$year==2010
+dhs[flip, ]$country_year_index = -dhs[flip, ]$country_year_index
 dhs$object_index = stata_index(dhs[, c("electric", "phone", "radio", "tv", "car")])
-dhs$index = -stata_index(dhs[, index_vars])
 
 dhs = dplyr::select(dhs, cname, year, cluster, index, object_index, country_year_index, 
                     sum_index, n)

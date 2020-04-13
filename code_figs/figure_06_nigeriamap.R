@@ -73,7 +73,7 @@ nl = raster(paste0("../data/predictions/nigeria_nl_5_8_4_6_polygon.tif"))
 nl = log(nl)
 nl[nl>2.5] = 2.5
 pdf("../raw_fig/Figure6_nigerianl.pdf", width=w, height=h)
-gplot(nl) + geom_tile(aes(fill=value)) + theme_blank() +
+ggplot(nl) + geom_tile(aes(fill=value)) + theme_blank() +
     scale_fill_gradient(low = "black", high = "white", limits=c(-3, 2.5), na.value = "transparent") +
     scale_x_continuous(limits = c(xmin, xmax), expand = c(0, 0)) + scale_y_continuous(limits = c(ymin, ymax), expand = c(0, 0))
 dev.off()
