@@ -9,7 +9,7 @@ indexdelta$lon = round(indexdelta$lon, 3)
 
 lsms = read.csv("../data/predictions/lsms_nls.csv")
 lsms = merge(lsms, lsms, by = c("lat", "lon", "country"))
-lsms = filter(lsms, year.x < year.y & year.y-year.x < 7)
+lsms = dplyr::filter(lsms, year.x < year.y & year.y-year.x < 7)
 lsms$nl_mean = lsms$nls_mean.y - lsms$nls_mean.x
 #lsms = lsms[lsms$nl_mean > -7, ] #remove 2 outliers to make graph clearer
 lsms = dplyr::select(lsms, lat, lon, nl_mean, year.x, year.y)
@@ -21,11 +21,11 @@ names(deltas) = c("lat", "lon", "year.x", "year.y",
                   "Change in mean NL", "Index of changes", "Change of index", "n")
 
 lsms = read.csv("../data/predictions/lsms_nls.csv")
-lsms = filter(lsms, year == 2005 & country=="uganda")
+lsms = dplyr::filter(lsms, year == 2005 & country=="uganda")
 lsms$lat = round(lsms$lat, 4)
 lsms$lon = round(lsms$lon, 4)
 labels = read.csv("../data/output/lsms_labels_index_agg.csv")
-labels = filter(labels, year == 2005 & country=="ug")
+labels = dplyr::filter(labels, year == 2005 & country=="ug")
 labels$lat = round(labels$lat, 4)
 labels$lon = round(labels$lon, 4)
 lsms = merge(lsms, labels, by=c("lat", "lon"))

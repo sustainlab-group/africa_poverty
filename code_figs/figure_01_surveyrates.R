@@ -4,13 +4,6 @@ source("00_dependencies.R")
 # Create DF with % pop surveyed for each year in the world
 ######################################################
 
-#get country by year binary CENSUS data
-census = read.csv("../data/surveys/census_time.csv")
-census = melt(census)
-names(census) = c("country", "year", "census")
-census = census[!census$year %in% c("X2017", "X2018"),]
-us_census = census[census$country=="United States", ]
-
 #get country by year # of people surveyed in povcal listed SURVEY data
 povcal = read.csv("../data/surveys/povcal_time_pop.csv")
 povcal = melt(povcal, id="country")
@@ -32,40 +25,42 @@ pop = dplyr::select(pop, -country)
 #crosswalk country ids
 cross = read.csv("../data/crosswalks/crosswalk_countries.csv", stringsAsFactors = F)
 
-census = merge(census, cross, by.x="country", by.y="country_simp")
-census = merge(census, dhs, by=c("country", "year"), all.x=T)
-census = merge(census, povcal,  by=c("country", "year"), all.x=T)
-full = merge(census, pop, by=c("iso3", "year"))
-full = dplyr::select(full, year, country, iso2, census, dhs, pop, povcal)
-full$census = full$census * full$pop
+#merge povcal, population, and crosswalk country names
+full = merge(dhs, cross, by.y="country_simp", by.x="country", all.x=T)
+full = merge(full, povcal,  by=c("country", "year"), all=T)
+full = merge(full, pop, by=c("iso3", "year"), all=T)
+full = dplyr::select(full, year, country, iso2, dhs, pop, povcal)
 
+#get year in better format
 full$year = full$year %>% as.character() %>% substr(2, 6) %>% as.numeric() 
 
-full_us = full[full$country == "United States", ]
-full = full[full$country %in% c("Nigeria", "Ethiopia", "Egypt", "Democratic Republic of the Congo", "Sao Tome and Principe",
-                                "South Africa", "Tanzania", "Kenya", "Sudan", "Algeria", "Uganda", 
-                                "Morocco", "Mozambique", "Ghana", "Angola", "Ivory Coast", "Madagascar", 
-                                "Cameroon", "Niger", "Burkina Faso", "Mali", "Malawi", "Zambia", "Somalia",
-                                "Senegal", "Chad", "Zimbabwe", "Rwanda", "Tunisia", "Guinea", "Benin", 
-                                "Burundi", "South Sudan", "Togo", "Eritrea", "Sierra Leone", "Libya", 
-                                "Republic of the Congo", "Central African Republic", "Liberia", "Mauritania", 
-                                "Namibia", "Botswana", "Lesotho", "Gambia", "Gabon", "Guinea-Bissau", "Mauritius", 
-                                "Equatorial Guinea", "Swaziland", "Djibouti", "Comoros", "Cape Verde", "Seychelles"), ]
+#get the US and filter the rest to relevant countries
+full = full[full$country %in% 
+                c("Nigeria", "Ethiopia", "Egypt", "Democratic Republic of the Congo", 
+                  "Sao Tome and Principe", "South Africa", "Tanzania", "Kenya", "Sudan", 
+                  "Algeria", "Uganda", "Morocco", "Mozambique", "Ghana", "Angola", 
+                  "Ivory Coast", "Madagascar", "Cameroon", "Niger", "Burkina Faso", 
+                  "Mali", "Malawi", "Zambia", "Somalia", "Senegal", "Chad", "Zimbabwe", 
+                  "Rwanda", "Tunisia", "Guinea", "Benin", "Burundi", "South Sudan", 
+                  "Togo", "Eritrea", "Sierra Leone", "Libya", "Republic of the Congo", 
+                  "Central African Republic", "Liberia", "Mauritania", "Namibia", 
+                  "Botswana", "Lesotho", "Gambia", "Gabon", "Guinea-Bissau", "Mauritius", 
+                  "Equatorial Guinea", "Swaziland", "Djibouti", "Comoros", "Cape Verde", 
+                  "Seychelles"), ]
 
-year = aggregate(full[, c('census', 'dhs', 'pop', 'povcal')], by=list(full$year), sum, na.rm=TRUE)
-names(year) = c("year", 'census', 'dhs', 'pop', 'povcal')
-year$total_perc = (year$pop*365)/(year$census + year$dhs + year$povcal)
+#get the aggregated yearly revisit rate over all the countries in full
+year = aggregate(full[, c('dhs', 'pop', 'povcal')], by=list(full$year), sum, na.rm=TRUE)
+names(year) = c("year", 'dhs', 'pop', 'povcal')
 year$surv_perc = (year$pop*365)/(year$dhs + year$povcal)
-year$census_perc = (year$pop*365)/(year$census)
 
-full_us = aggregate(full_us[, c('census', 'dhs', 'pop', 'povcal')], by=list(full_us$year), sum, na.rm=TRUE)
+#combine the us dhs and povcal with ACS etc
+us_pop = pop[pop$iso3=="USA",]
 us = read.csv('../data/surveys/us_surveys_time.csv')
 us = melt(us)
 us = aggregate(us$value, by=list(us$variable), FUN=sum, na.rm=T)
 us$year = us$Group.1 %>% as.character() %>% substr(2, 6) %>% as.numeric() 
-us = merge(us, full_us, by.x="year", by.y="Group.1")
-us$total_perc = (us$pop*365)/(us$x + us$census + us$povcal + us$dhs)
-us$survey_perc = (us$pop*365)/(us$x + us$povcal + us$dhs)
+us = merge(us, us_pop, by.x="Group.1", by.y="year")
+us$survey_perc = (us$pop*365)/(us$x)
 
 ######################################################
 # Create DF with % pop imaged for each year in the world
@@ -74,15 +69,20 @@ us$survey_perc = (us$pop*365)/(us$x + us$povcal + us$dhs)
 gee = read.csv("../data/overpass/dhs_sample_GEE.csv")
 gee = gee %>% 
     group_by(year) %>% #multiply modis *8 because its an 8 day composite
-    summarize(l5 = 365/(sum(num_l5, na.rm=T)/500), l7 = 365/(sum(num_l7, na.rm=T)/500), l8 = 365/(sum(num_l8, na.rm=T)/500),
-              s2 = 365/(sum(num_s2, na.rm=T)/500), s1 = 365/(sum(num_s1, na.rm=T)/500), all_s = 365/(sum(num_s1, num_s2, na.rm=T)/500),
-              all_l = 365/(sum(num_l5, num_l8, num_l7, na.rm=T)/500), modis = 365/((sum(num_modis, na.rm=T)*8)/500))
+    dplyr::summarize(l5 = 365/(sum(num_l5, na.rm=T)/500), 
+                     l7 = 365/(sum(num_l7, na.rm=T)/500), 
+                     l8 = 365/(sum(num_l8, na.rm=T)/500),
+                     s2 = 365/(sum(num_s2, na.rm=T)/500), 
+                     s1 = 365/(sum(num_s1, na.rm=T)/500), 
+                     all_s = 365/(sum(num_s1, num_s2, na.rm=T)/500),
+                     all_l = 365/(sum(num_l5, num_l8, num_l7, na.rm=T)/500), 
+                     modis = 365/((sum(num_modis, na.rm=T)*8)/500))
 
 planet = read.csv("../data/overpass/dhs_sample_Planet.csv")
 planet = dplyr::select(planet, year, cluster_id, count_PlanetScope, count_RapidEye)
 planet = planet %>% 
     group_by(year) %>% 
-    summarize(planetscope = 365/(sum(count_PlanetScope, na.rm=T)/500), 
+    dplyr::summarize(planetscope = 365/(sum(count_PlanetScope, na.rm=T)/500), 
               rapideye = 365/(sum(count_RapidEye, na.rm=T)/500), 
               all_planet = 365/(sum(count_RapidEye, count_PlanetScope, na.rm=T)/500))
 
@@ -90,8 +90,8 @@ quickbird = read.csv("../data/overpass/landinfo_dhs_sample_nocatalog.csv")
 quickbird$year = paste0("20", substr(as.character(quickbird$date),
                                      nchar(as.character(quickbird$date))-1, nchar(as.character(quickbird$date))))
 quickbird$cloud = substr(as.character(quickbird$cloud), 1, nchar(as.character(quickbird$cloud))-1)
-quickbird = quickbird %>% filter(cloud <= 30) %>% 
-    group_by(year) %>% summarise(dg=365/(n()/500))
+quickbird = quickbird %>% dplyr::filter(cloud <= 30) %>% 
+    group_by(year) %>% dplyr::summarise(dg=365/(n()/500))
 
 overpass = merge(gee, planet, by="year")
 overpass = merge(overpass, quickbird, by="year")
@@ -154,35 +154,32 @@ ggsave("../raw_fig/Figure1b_revisitrate.pdf", plot=p,  width=11.5, height=7.4)
 ######################################################
 
 country = full[full$year <= 2014 & full$year >= 2000, ]
-country = aggregate(country[, c('census', 'dhs', 'pop', 'povcal')], by=list(country$country), sum, na.rm=TRUE)
-names(country) = c("country", 'census', 'dhs', 'pop', 'povcal')
-country$perc = (country$census + country$dhs + country$povcal)/(country$pop*(365))
+country = aggregate(country[, c('dhs', 'pop', 'povcal')], by=list(country$country), sum, na.rm=TRUE)
+names(country) = c("country", 'dhs', 'pop', 'povcal')
+country$perc = (country$dhs + country$povcal)/(country$pop*(365))
 country = merge(country, cross, by.x="country", by.y="country_simp")
 
 cols = 9:25
-census = read.csv("../data/surveys/census_time.csv")
-census$censussum = rowSums(census[, 2:25])
 
-povcal = read.csv("../data/surveys/povcal_time.csv")
+povcal = read.csv("../data/surveys/povcal_time_pop.csv")
 povcal[, -1] = povcal[, -1] > 0
-povcal$povsum = rowSums(povcal[, cols])
+povcal$povsum = rowSums(povcal[, cols], na.rm=T)
 
 dhs = read.csv("../data/surveys/dhs_time.csv")
 dhs[, -1] = dhs[, -1] > 0
-dhs$dhssum = rowSums(dhs[, cols])
+dhs$dhssum = rowSums(dhs[, cols], na.rm=T)
 
-census = merge(census, povcal, by='country')
-census = merge(census, dhs, by = 'country', all=T)
+census = merge(dhs, povcal, by='country', all=T)
 census = merge(census, cross, by.x="country", by.y="country_simp")
-census = dplyr::select(census, country, iso3, censussum, povsum, dhssum)
+census = dplyr::select(census, country, iso3, povsum, dhssum)
 
 census[is.na(census)] = 0
 survt = (census$povsum + census$dhssum)!=0
 census[survt, "survsum"] = (2016-2000)/(census[survt, "dhssum"] + census[survt, "povsum"])
 census[!survt, "survsum"] = 0
-census[census$censussum!=0, "censussum"] = (2016-1993)/census[census$censussum!=0, "censussum"]
 africa = readRDS("../data/shapefiles/africa_gadm.rds")
 africa = merge(africa, census, by.x ="GID_0", by.y="iso3")
+africa$survsum[is.na(africa$survsum)] = 0
 
 ######################################################
 # Make maps
