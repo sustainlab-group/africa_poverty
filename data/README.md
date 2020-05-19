@@ -85,9 +85,8 @@
 - a combined shapefile of all those countries.
 
 **surveys/.**
-- census_time.csv: A list of years of censuses for each country. Sourced from the UN list at https://unstats.un.org/unsd/demographic-social/census/censusdates/
 - dhs_time.csv: For each country-year, a number of sampled individuals in each year. Compiled from https://dhsprogram.com/data/available-datasets.cfm
-- population_time.csv: Country by year population, downloaded from the world bank.
+- population_time.csv: Annual population estimates for each country between 1960 and 2017, inclusive. Downloaded from the World Bank, variable "Population, total (SP.POP.TOTL)", version "2018 Oct". See the World Bank World Development Indicators Database Archives: [https://datacatalog.worldbank.org/dataset/wdi-database-archives](https://datacatalog.worldbank.org/dataset/wdi-database-archives).
 - povcal_time.csv: For each country-year, a number of sampled individuals in that year. Compiled from http://iresearch.worldbank.org/PovcalNet/povOnDemand.aspx, by finding the number of observations in each "detailed output" for each survey.
 - povcal_time_pop.csv: A version of the povcal_time.csv that is less accurate, instead assuming that on each year with a survey about 2% of the population is surveyed. 
 - us_surveys_time.csv: the number of ppl sampled in surveys as pulled from:
