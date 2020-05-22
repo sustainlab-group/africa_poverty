@@ -69,7 +69,7 @@ def create_folds(locs, min_dist, dist_metric, fold_names, verbose=True,
     # sort clusters by descending cluster size
     sorted_clusters = sorted(clusters_dict.keys(), key=lambda c: -len(clusters_dict[c]))
 
-    # plot 5 largest clusters
+    # plot the largest clusters
     for i in range(plot_largest_clusters):
         c = sorted_clusters[i]
         indices = clusters_dict[c]
