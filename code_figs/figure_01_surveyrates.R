@@ -5,14 +5,14 @@ source("00_dependencies.R")
 ######################################################
 
 #get country by year # of people surveyed in povcal listed SURVEY data
-povcal = read.csv("../data/surveys/povcal_time_pop2.csv")
+povcal = read.csv("../data/surveys/povcal_time_pop.csv")
 povcal = melt(povcal, id="country")
 names(povcal) = c("country", "year", "povcal")
 povcal[is.na(povcal$povcal) | povcal$povcal == "", "povcal"] = 0
 #povcal$povcal = as.numeric(povcal$povcal)
 
 #get country by year # of people surveyed in DHS SURVEY data
-dhs = read.csv("../data/surveys/dhs_time2.csv", stringsAsFactors = F)
+dhs = read.csv("../data/surveys/dhs_time.csv", stringsAsFactors = F)
 dhs = melt(dhs)
 names(dhs) = c("country", "year", "dhs")
 
@@ -62,7 +62,7 @@ year$surv_perc = (year$pop*365)/(year$dhs + year$povcal)
 
 #combine the us dhs and povcal with ACS etc
 us_pop = pop[pop$iso3=="USA",]
-us = read.csv('../data/surveys/us_surveys_time2.csv')
+us = read.csv('../data/surveys/us_surveys_time.csv')
 us = melt(us)
 us = aggregate(us$value, by=list(us$variable), FUN=sum, na.rm=T)
 us$year = us$Group.1 %>% as.character() %>% substr(2, 6) %>% as.numeric() 
@@ -169,12 +169,12 @@ country = merge(country, cross, by.x="country", by.y="country_simp")
 
 cols = 2:20
 
-povcal = read.csv("../data/surveys/povcal_time_pop2.csv")
+povcal = read.csv("../data/surveys/povcal_time_pop.csv")
 povcal[povcal==""] = 0
 povcal[, -1] = !is.na(povcal[, -1])
 povcal$povsum = rowSums(povcal[, cols], na.rm=T)
 
-dhs = read.csv("../data/surveys/dhs_time2.csv")
+dhs = read.csv("../data/surveys/dhs_time.csv")
 dhs[, -1] = dhs[, -1] > 0
 dhs$dhssum = rowSums(dhs[, cols], na.rm=T)
 
