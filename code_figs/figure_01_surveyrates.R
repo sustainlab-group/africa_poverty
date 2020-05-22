@@ -5,14 +5,14 @@ source("00_dependencies.R")
 ######################################################
 
 #get country by year # of people surveyed in povcal listed SURVEY data
-povcal = read.csv("../data/surveys/povcal_time_pop.csv")
+povcal = read.csv("../data/surveys/povcal_time_pop2.csv")
 povcal = melt(povcal, id="country")
 names(povcal) = c("country", "year", "povcal")
 povcal[is.na(povcal$povcal) | povcal$povcal == "", "povcal"] = 0
-povcal$povcal = as.numeric(povcal$povcal)
+#povcal$povcal = as.numeric(povcal$povcal)
 
 #get country by year # of people surveyed in DHS SURVEY data
-dhs = read.csv("../data/surveys/dhs_time.csv", stringsAsFactors = F)
+dhs = read.csv("../data/surveys/dhs_time2.csv", stringsAsFactors = F)
 dhs = melt(dhs)
 names(dhs) = c("country", "year", "dhs")
 
@@ -26,28 +26,35 @@ pop = dplyr::select(pop, -country)
 cross = read.csv("../data/crosswalks/crosswalk_countries.csv", stringsAsFactors = F)
 
 #merge povcal, population, and crosswalk country names
-full = merge(dhs, cross, by.y="country_simp", by.x="country", all.x=T)
-full = merge(full, povcal,  by=c("country", "year"), all=T)
-full = merge(full, pop, by=c("iso3", "year"), all=T)
+dhs = merge(dhs, cross, by.y="country_simp", by.x="country", all.x=T)[, -6]
+povcal = merge(povcal, cross, by.y="country_simp", by.x="country", all.x=T)[, -6]
+full = merge(dhs, povcal, by=c("country", "year", "iso2", "iso3", "country_pred", "country_wb"), all=T)
+full = merge(full, pop, by=c("iso3", "year"), all.x=T)
 full = dplyr::select(full, year, country, iso2, dhs, pop, povcal)
+
+#sub in the years of povcal without  sample sizes
+samp = as.numeric(full$povcal)/full$pop
+samp = quantile(samp[samp != 0], 0.9, na.rm=T)
+full$povcal[full$povcal == "x" & !is.na(full$povcal)] = samp*full$pop[full$povcal == "x" & !is.na(full$povcal)]
+full$povcal = as.numeric(full$povcal)
 
 #get year in better format
 full$year = full$year %>% as.character() %>% substr(2, 6) %>% as.numeric() 
 
 #get the US and filter the rest to relevant countries
 full = full[full$country %in% 
-                c("Nigeria", "Ethiopia", "Egypt", "Democratic Republic of the Congo", 
-                  "Sao Tome and Principe", "South Africa", "Tanzania", "Kenya", "Sudan", 
-                  "Algeria", "Uganda", "Morocco", "Mozambique", "Ghana", "Angola", 
-                  "Ivory Coast", "Madagascar", "Cameroon", "Niger", "Burkina Faso", 
-                  "Mali", "Malawi", "Zambia", "Somalia", "Senegal", "Chad", "Zimbabwe", 
-                  "Rwanda", "Tunisia", "Guinea", "Benin", "Burundi", "South Sudan", 
-                  "Togo", "Eritrea", "Sierra Leone", "Libya", "Republic of the Congo", 
-                  "Central African Republic", "Liberia", "Mauritania", "Namibia", 
-                  "Botswana", "Lesotho", "Gambia", "Gabon", "Guinea-Bissau", "Mauritius", 
-                  "Equatorial Guinea", "Swaziland", "Djibouti", "Comoros", "Cape Verde", 
-                  "Seychelles"), ]
-
+                c("Algeria", "Angola",  "Benin", "Botswana", "Burkina Faso", "Burundi",
+                  "Cameroon", "Cape Verde", "Central African Republic", "Chad", "Comoros", 
+                  "Democratic Republic of the Congo", "Djibouti", "Egypt", 
+                  "Equatorial Guinea", "Eritrea", "Ethiopia", "Gabon", "Gambia", "Ghana", 
+                  "Guinea", "Guinea-Bissau", "Ivory Coast", "Kenya", "Lesotho", "Liberia", 
+                  "Libya", "Madagascar", "Malawi", "Mali", "Mauritania", "Mauritius", 
+                  "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", 
+                  "Republic of the Congo", "Rwanda", "Sao Tome and Principe", "Senegal", 
+                  "Seychelles", "Sierra Leone", "Somalia", "South Africa", "South Sudan", 
+                  "Sudan", "Swaziland", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia",  
+                  "Zimbabwe"), ]
+                        
 #get the aggregated yearly revisit rate over all the countries in full
 year = aggregate(full[, c('dhs', 'pop', 'povcal')], by=list(full$year), sum, na.rm=TRUE)
 names(year) = c("year", 'dhs', 'pop', 'povcal')
@@ -55,7 +62,7 @@ year$surv_perc = (year$pop*365)/(year$dhs + year$povcal)
 
 #combine the us dhs and povcal with ACS etc
 us_pop = pop[pop$iso3=="USA",]
-us = read.csv('../data/surveys/us_surveys_time.csv')
+us = read.csv('../data/surveys/us_surveys_time2.csv')
 us = melt(us)
 us = aggregate(us$value, by=list(us$variable), FUN=sum, na.rm=T)
 us$year = us$Group.1 %>% as.character() %>% substr(2, 6) %>% as.numeric() 
@@ -77,7 +84,7 @@ gee = gee %>%
                      all_s = 365/(sum(num_s1, num_s2, na.rm=T)/500),
                      all_l = 365/(sum(num_l5, num_l8, num_l7, na.rm=T)/500), 
                      modis = 365/((sum(num_modis, na.rm=T)*8)/500))
-
+                         
 planet = read.csv("../data/overpass/dhs_sample_Planet.csv")
 planet = dplyr::select(planet, year, cluster_id, count_PlanetScope, count_RapidEye)
 planet = planet %>% 
@@ -127,13 +134,14 @@ year = rbind(us, year)
 options(scipen=100)
 
 p = ggplot() + 
-    geom_hline(yintercept=1, linetype="66", size=.35, color="grey") + 
-    geom_hline(yintercept=7, linetype="66", size=.35, color="grey") + 
-    geom_hline(yintercept=30, linetype="66", size=.35, color="grey") +
-    geom_hline(yintercept=365, linetype="66", size=.35, color="grey") +
-    geom_hline(yintercept=3650, linetype="66", size=.35, color="grey") +
-    geom_hline(yintercept=36500, linetype="66", size=.35, color="grey") +
-    geom_hline(yintercept=365000, linetype="66", size=.35, color="grey") +
+    geom_hline(yintercept=1, size=0.7, alpha=0.5, color="grey") + 
+    geom_hline(yintercept=7,size=0.7, alpha=0.5, color="grey") + 
+    geom_hline(yintercept=30, size=0.7, alpha=0.5, color="grey") +
+    geom_hline(yintercept=365, size=0.7, alpha=0.5, color="grey") +
+    geom_hline(yintercept=3650, size=0.7, alpha=0.5, color="grey") +
+    geom_hline(yintercept=36500, size=0.7, alpha=0.5, color="grey") +
+    geom_hline(yintercept=365000, size=0.7, alpha=0.5, color="grey") +
+    geom_hline(yintercept=4927500, size=0.7, alpha=0.5, color="grey") +
     
     geom_line(aes(year, value, group=variable, color=as.factor(res)), size=0.8, overpass) + #, color=variable
     geom_line(aes(year, value, group=variable), size=0.8, linetype="1232", year) +
@@ -159,13 +167,14 @@ names(country) = c("country", 'dhs', 'pop', 'povcal')
 country$perc = (country$dhs + country$povcal)/(country$pop*(365))
 country = merge(country, cross, by.x="country", by.y="country_simp")
 
-cols = 9:25
+cols = 2:20
 
-povcal = read.csv("../data/surveys/povcal_time_pop.csv")
-povcal[, -1] = povcal[, -1] > 0
+povcal = read.csv("../data/surveys/povcal_time_pop2.csv")
+povcal[povcal==""] = 0
+povcal[, -1] = !is.na(povcal[, -1])
 povcal$povsum = rowSums(povcal[, cols], na.rm=T)
 
-dhs = read.csv("../data/surveys/dhs_time.csv")
+dhs = read.csv("../data/surveys/dhs_time2.csv")
 dhs[, -1] = dhs[, -1] > 0
 dhs$dhssum = rowSums(dhs[, cols], na.rm=T)
 
@@ -175,7 +184,7 @@ census = dplyr::select(census, country, iso3, povsum, dhssum)
 
 census[is.na(census)] = 0
 survt = (census$povsum + census$dhssum)!=0
-census[survt, "survsum"] = (2016-2000)/(census[survt, "dhssum"] + census[survt, "povsum"])
+census[survt, "survsum"] = (2018-1999)/(census[survt, "dhssum"] + census[survt, "povsum"])
 census[!survt, "survsum"] = 0
 africa = readRDS("../data/shapefiles/africa_gadm.rds")
 africa = merge(africa, census, by.x ="GID_0", by.y="iso3")
@@ -186,5 +195,5 @@ africa$survsum[is.na(africa$survsum)] = 0
 ######################################################
 
 surv = map(africa, 'survsum', '', 'years btwn surveys', color=c("#F7F7B8", "#F7EB7D", "#F7E04C", "#F7CA23", "#FFA94D", "#FF4D4D"), #mincol="#FFFFA7", maxcol="#FF0000", 
-           breaks=c(1, 2, 3, 4, 5, 10, 17), font="sans")
+           breaks=c(1, 2, 3, 4, 5, 10, 19), font="sans")
 ggsave("../raw_fig/Figure1a_mapsurveysovertime.pdf", plot=surv,  width=7, height=7)

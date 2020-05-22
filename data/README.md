@@ -92,13 +92,15 @@
 - povcal_time_pop.csv: A version of the povcal_time.csv that is less accurate, instead assuming that on each year with a survey about 2% of the population is surveyed. 
 - us_surveys_time.csv: the number of ppl sampled in surveys as pulled from:
   - ACS: https://www.census.gov/acs/www/methodology/sample-size-and-data-quality/sample-size/index.php
+      calculated by summing the Final Interviews and Final Actual Interviews columns
   - AHS until 2015: https://www.census.gov/content/dam/Census/programs-surveys/ahs/publications/AHS%20Sample%20Determination%20and%20Decisions.pdf
   - AHS in 2017: https://www.census.gov/programs-surveys/ahs/about/methodology.html
-  - CPS: https://www.census.gov/programs-surveys/cps/technical-documentation/methodology.html
+  - AHS in 2019: https://www.reginfo.gov/public/do/PRAViewDocument?ref_nbr=201810-2528-002
+  - CPS: http://www.census.gov/prod/2006pubs/tp-66.pdf
   - NSCG: https://www.nsf.gov/statistics/srvygrads/overview.htm
   - PSID 1: https://psidonline.isr.umich.edu/publications/Papers/tsp/2000-04_Imm_Sample_Addition.pdf
   - PSID 2: https://nsf.gov/news/special_reports/survey/index.jsp?id=income (interpolated between)
   - SIPP 1993: https://www2.census.gov/prod2/sipp/wp/SIPP_WP_203.pdf
-  - SIPP: http://www.nber.org/sipp/2008/ch2_nov20.pdf
-
+  - SIPP: http://www.nber.org/sipp/2008/ch2_nov20.pdf. For 2014 sample we assume same size as 2008.
+  All sample numbers that are household counts are multiplied by the mean household size in that year (as found at https://www.census.gov/data/tables/time-series/demo/families/households.html)
 
