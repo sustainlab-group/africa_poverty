@@ -1,41 +1,45 @@
-## Computing Environment
+## Using publicly available satellite imagery and deep learning to understand economic well-being in Africa
 
-The code for this project has been tested to work on a system with the following hardware and software specifications.
+This repository includes the code and data necessary to reproduce the results and figures for the article "Using publicly available satellite imagery and deep learning to understand economic well-being in Africa" published in *Nature Communications* on May 22, 2020 ([link](https://www.nature.com/articles/s41467-020-16185-w)).
 
-### Hardware
+Please cite this article as follows, or use the BibTeX entry below.
 
+> Yeh, C., Perez, A., Driscoll, A. *et al*. Using publicly available satellite imagery and deep learning to understand economic well-being in Africa. *Nat Commun* **11**, 2583 (2020). https://doi.org/10.1038/s41467-020-16185-w
+
+```tex
+@article{yeh2020using,
+    author = {Yeh, Christopher and Perez, Anthony and Driscoll, Anne and Azzari, George and Tang, Zhongyi and Lobell, David and Ermon, Stefano and Burke, Marshall},
+    day = {22},
+    doi = {10.1038/s41467-020-16185-w},
+    issn = {2041-1723},
+    journal = {Nature Communications},
+    month = {5},
+    number = {1},
+    title = {{Using publicly available satellite imagery and deep learning to understand economic well-being in Africa}},
+    url = {https://www.nature.com/articles/s41467-020-16185-w},
+    volume = {11},
+    year = {2020}
+}
+```
+
+
+## Hardware and Software Requirements
+
+This code was tested on a system with the following specifications:
+
+- operating system: Ubuntu 16.04.6 LTS
 - CPU: Intel Xeon Silver 4110
-- Hard Drive: 256GB SSD
-- Memory: 125GB
+- memory (RAM): 125GB
+- disk storage: 500GB
 - GPU: 1x NVIDIA Titan Xp
 
+The main software requirements are Python 3.7 with TensorFlow r1.15, and R 3.6. The complete list of required packages and library are listed in the `env.yml` file, which is meant to be used with `conda` (version 4.8.3). See [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) for instructions on installing conda via Miniconda. Once conda is installed, run the following command to set up the conda environment:
 
-### Software
+```bash
+conda env create -f env.yml
+```
 
-- Ubuntu 16.04.5 LTS
-- miniconda3
-- python 3.7.4
-- pillow 5.4.1
-- scikit-learn 0.20.3
-- numpy 1.17.2
-- scipy 1.3.1
-- seaborn 0.9.0
-- cartopy 0.17.0
-- earthengine-api 0.1.213
-- gdal 2.3.3
-- jupyter 1.0.0
-- matplotlib 3.1.1
-- pandas 0.25.1
-- tensorflow-gpu 1.13.1
-- tqdm 4.31.1
-
-
-## Environment Setup
-
-1. Install CUDA 10 and cuDNN 7.
-2. Install miniconda.
-3. Setup the conda environment: `conda env create -f env.yml`
-4. Install TensorFlow: `pip install -U tensorflow-gpu==1.13.1`
+If you are using a GPU, you may need to also install CUDA 10 and cuDNN 7.
 
 
 ## Data Preparation Instructions
