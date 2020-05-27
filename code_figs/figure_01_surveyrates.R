@@ -131,6 +131,7 @@ us = us[, c("year", "variable", "survey_perc")]
 names(us) = c("year", "variable", "value")
 
 year = rbind(us, year)
+year = year[year$year <= 2016,]
 options(scipen=100)
 
 p = ggplot() + 
@@ -167,7 +168,7 @@ names(country) = c("country", 'dhs', 'pop', 'povcal')
 country$perc = (country$dhs + country$povcal)/(country$pop*(365))
 country = merge(country, cross, by.x="country", by.y="country_simp")
 
-cols = 2:20
+cols = 2:18
 
 povcal = read.csv("../data/surveys/povcal_time_pop.csv")
 povcal[povcal==""] = 0

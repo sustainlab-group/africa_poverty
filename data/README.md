@@ -87,8 +87,7 @@
 **surveys/.**
 - dhs_time.csv: For each country-year, a number of sampled individuals in each year. Compiled from https://dhsprogram.com/data/available-datasets.cfm
 - population_time.csv: Annual population estimates for each country between 1960 and 2017, inclusive. Downloaded from the World Bank, variable "Population, total (SP.POP.TOTL)", version "2018 Oct". See the World Bank World Development Indicators Database Archives: [https://datacatalog.worldbank.org/dataset/wdi-database-archives](https://datacatalog.worldbank.org/dataset/wdi-database-archives).
-- povcal_time.csv: For each country-year, a number of sampled individuals in that year. Compiled from http://iresearch.worldbank.org/PovcalNet/povOnDemand.aspx, by finding the number of observations in each "detailed output" for each survey.
-- povcal_time_pop.csv: A version of the povcal_time.csv that is less accurate, instead assuming that on each year with a survey about 2% of the population is surveyed. 
+- povcal_time_pop.csv: For each country-year, a number of sampled individuals in that year. Compiled from http://iresearch.worldbank.org/PovcalNet/povOnDemand.aspx, by finding the number of observations in each "detailed output" for each survey. For type C surveys, "X" is recorded to indicate there was a survey but no sample size is given, in the code X is substituted on a country level for the largest sample seen in that country as that is the most conservative assumption.
 - us_surveys_time.csv: the number of ppl sampled in surveys as pulled from:
   - ACS: https://www.census.gov/acs/www/methodology/sample-size-and-data-quality/sample-size/index.php
       calculated by summing the Final Interviews and Final Actual Interviews columns
