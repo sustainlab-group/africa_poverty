@@ -59,6 +59,6 @@ If you are using a GPU, you may need to also install CUDA 10 and cuDNN 7.
 
 ## To reproduce figs:
 
-All necessary scripts should be in code_figs, and all necessary data should be in data. We included data of the summary stats for plotting, since the full microdata cannot be released.
+All necessary scripts should be in code_figs, and all necessary data should be in data. We included data of the summary stats for plotting, since the full microdata cannot be released. A few changes have been made to data and code to fix errors in plots. Code has been updated to fix an artificially inflated revisit rate for DigitalGlobe in Figure 1. Changes were made to the data on survey frequency used for Figure 1.
 
 For the maximally-activating activation maps, see the `model_analysis/max_activating.ipynb` notebook.
